@@ -138,10 +138,16 @@ export function registerToolbox(on: On): void {
     const status = effortLabel ? `${modelLabel(modelId)} · ${effortLabel}` : modelLabel(modelId)
 
     const section = (name: string) => (
-      <Box marginTop={1}>
-        <Text dimColor wrap="truncate-end">
-          ── {spaced(name)}
-        </Text>
+      <Text dimColor wrap="truncate-end">
+        {spaced(name)}
+      </Text>
+    )
+
+    // A solid line across the box: one row tall, the overflow cut off, so it
+    // fills the width on every surface without wrapping or an ellipsis.
+    const line = (key: string) => (
+      <Box key={key} height={1} overflow="hidden" marginY={1}>
+        <Text dimColor>{'─'.repeat(400)}</Text>
       </Box>
     )
 
@@ -160,7 +166,7 @@ export function registerToolbox(on: On): void {
       const isOn = await readFlag($, mod.plugin)
       if (isOn === undefined) continue
       modRows.push(
-        <Box flexDirection="row" justifyContent="space-between">
+        <Box flexDirection="row" justifyContent="space-between" alignItems="center">
           <Box flexDirection="row">
             <Text color={isOn ? 'success' : 'inactive'}>{isOn ? '● ' : '○ '}</Text>
             <Box width={14}>
@@ -189,7 +195,8 @@ export function registerToolbox(on: On): void {
             <Button key="close" label="✕" plain role="dismiss" onPress={() => close($)} />
           </Box>
         </Box>
-        <Box flexDirection="row" marginTop={1} flexWrap="wrap" gap={1}>
+        <Box flexDirection="column" marginTop={1} rowGap="sm">
+        <Box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
           {label('MODEL')}
           {MODELS.map(m => (
             <Button
@@ -200,7 +207,7 @@ export function registerToolbox(on: On): void {
             />
           ))}
         </Box>
-        <Box flexDirection="row" flexWrap="wrap" gap={1}>
+        <Box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
           {label('EFFORT')}
           {EFFORTS.map(x => (
             <Button
@@ -211,8 +218,13 @@ export function registerToolbox(on: On): void {
             />
           ))}
         </Box>
-        {section('MODS')}
-        {modRows.length > 0 ? modRows : <Text dimColor>No mods installed yet</Text>}
+        </Box>
+        {line('line-above-mods')}
+        <Box flexDirection="column" rowGap="sm">
+          {section('MODS')}
+          {modRows.length > 0 ? modRows : <Text dimColor>No mods installed yet</Text>}
+        </Box>
+        {line('line-below-mods')}
         {section('QUICK')}
         <Box flexDirection="row" flexWrap="wrap" gap={2}>
           {QUICK.map(q => (
