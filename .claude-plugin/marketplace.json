@@ -1,0 +1,11 @@
+{
+  "name": "leonybom-mods",
+  "owner": { "name": "LeoNybom" },
+  "plugins": [
+    {
+      "name": "clean-view",
+      "source": "./clean-view",
+      "description": "A calm, friendly view: hides tool rows and shows one simple checklist of the plan above the prompt."
+    }
+  ]
+}
