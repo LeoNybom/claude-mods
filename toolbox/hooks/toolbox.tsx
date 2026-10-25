@@ -138,13 +138,10 @@ export function registerToolbox(on: On): void {
     const status = effortLabel ? `${modelLabel(modelId)} · ${effortLabel}` : modelLabel(modelId)
 
     const section = (name: string) => (
-      <Box flexDirection="row" marginTop={1}>
-        <Text dimColor>── {spaced(name)} </Text>
-        <Box flexGrow={1} overflow="hidden">
-          <Text dimColor wrap="truncate-end">
-            {'─'.repeat(300)}
-          </Text>
-        </Box>
+      <Box marginTop={1}>
+        <Text dimColor wrap="truncate-end">
+          ── {spaced(name)}
+        </Text>
       </Box>
     )
 

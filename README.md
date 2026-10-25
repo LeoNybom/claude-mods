@@ -6,7 +6,7 @@ Mods for Claude Code.
 
 Makes Claude Code calm and friendly for people who aren't technical. While Claude works, tool calls, file diffs and command output are hidden, and one simple checklist sits above the prompt: the plan, what's happening now and how far along it is.
 
-- Turn it on or off with the **Clean View** button above the prompt, or type `/simple on`, `/simple off` or just `/simple`.
+- Turn it on or off from the Tools box (or, without Tools, the **Clean View** button above the prompt), or type `/simple on`, `/simple off` or just `/simple`.
 - The choice is remembered on each computer.
 - Press ctrl+o to see every hidden row at any time.
 

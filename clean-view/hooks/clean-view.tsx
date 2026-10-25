@@ -258,6 +258,13 @@ function newJob(jobId: number, now: number): CleanViewChecklist {
 
 // Module variables reset on a reload; everything shown lives in $.state.
 let ticker: { cancel: () => void } | undefined
+let hasToolbox = false
+
+/** True once the Tools box (the Toolbox mod) is found among the commands. */
+async function checkToolbox($: Engine): Promise<boolean> {
+  if (!hasToolbox) hasToolbox = (await $.command.list()).some(c => c.name === 'toolbox')
+  return hasToolbox
+}
 let collapseTimer: { cancel: () => void } | undefined
 let failuresInARow = 0
 let lastApiError: string | undefined
@@ -592,6 +599,7 @@ export function registerCleanView(on: On): void {
     if (e.props.hasSurvey) return rest
     const { Box } = $.ui.resolve(e)
     const mine = await drawBand($, e)
+    if (mine === null) return rest
     return (
       <Box flexDirection="column">
         {mine}
@@ -607,14 +615,17 @@ async function drawBand($: Engine, e: RenderInput<'AbovePrompt'>): Promise<unkno
     const { Box, Text, Button } = $.ui.resolve(e)
     const enabled = await read($, enabledAtom)
     const columns = Math.max(20, e.props.bodyColumns)
+    // With the Tools box installed, its row is the switch, so this button stays away.
+    const showButton = !(await checkToolbox($))
     const label = enabled ? '● Clean View: ON' : '○ Clean View: OFF'
-    const button = (
+    const button = showButton ? (
       <Button key="clean-view-toggle" label={label} variant={enabled ? 'primary' : 'secondary'} onPress={() => toggle($)} />
-    )
-    const headerWidth = Math.max(0, columns - (label.length + 4) - 1)
+    ) : null
+    const headerWidth = Math.max(0, columns - (showButton ? label.length + 4 : 0) - 1)
 
     const list = await read($, checklistAtom)
     if (!enabled || list.phase === 'idle') {
+      if (!showButton) return null
       return (
         <Box flexDirection="row" justifyContent="flex-end">
           {button}

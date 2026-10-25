@@ -27,7 +27,7 @@ const USAGE = {
 }
 
 /** Stands in for the engine beneath the plugin. */
-async function setup($: Parameters<Parameters<typeof test>[1]>[0], on: On) {
+async function setup($: Parameters<Parameters<typeof test>[1]>[0], on: On, commands: string[] = []) {
   mock.store(on)
   const clock = mock.clock(on, { now: 1_000_000 })
   on('tool.register', (_, e) => ({ value: { tool: `mcp__clean-view__${e.name}` } }))
@@ -38,6 +38,7 @@ async function setup($: Parameters<Parameters<typeof test>[1]>[0], on: On) {
   on('classic.Notification', () => ({}))
   on('tool.call', () => ({ result: {}, text: 'ok' }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
+  on('command.list', () => ({ value: commands.map(name => ({ name, description: '', source: 'plugin' })) }))
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>engine row</Text>
@@ -195,4 +196,14 @@ test('extra: the band keeps what the other mods draw beneath it', async ($, on) 
     expect(await ui.find({ type: 'Text', text: /engine row/ })).toBeDefined()
     await ui.unmount()
   }
+})
+
+test('extra: with the Tools box installed, the band leaves out its own button', async ($, on) => {
+  await setup($, on, ['toolbox'])
+  await $.turn.start({ text: 'Write a poem', turnId: 't1' })
+  await $.tool.call({ tool: PLAN, steps: ['Write the poem'] } as never)
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /^Write the poem/ })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'clean-view-toggle' })).toBeUndefined()
+  await ui.unmount()
 })
