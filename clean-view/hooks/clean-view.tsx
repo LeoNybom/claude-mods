@@ -680,7 +680,10 @@ async function drawBand($: Engine, e: RenderInput<'AbovePrompt'>): Promise<unkno
     if (list.phase === 'done' && list.isCollapsed) return headerRow
 
     // icon(1) + space + name + space + meter(10) + space + label(7)
-    const nameWidth = Math.max(4, columns - (2 + 1 + METER + 1 + LABEL_WIDTH))
+    // As wide as the longest step name, so the meter sits right after the names,
+    // and never wider than the band has room for.
+    const longest = Math.max(4, ...list.tasks.map(t => t.name.length))
+    const nameWidth = Math.max(4, Math.min(longest, columns - (2 + 1 + METER + 1 + LABEL_WIDTH)))
     let upcomingSeen = 0
     const rows = list.tasks.map(task => {
       if (task.status === 'done') {

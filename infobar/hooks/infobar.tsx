@@ -186,11 +186,15 @@ async function drawBar(
   })
 
   return (
-    <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+    <Box flexDirection="row" justifyContent="space-between" alignItems="center" width="100%">
       <Box flexDirection="row" flexShrink={1} overflow="hidden">
         {left}
       </Box>
-      {showTools ? <Button key="open-tools" label={toolsLabel} plain onPress={() => undefined} /> : null}
+      {showTools ? (
+        <Box marginLeft={3} flexShrink={0}>
+          <Button key="open-tools" label={toolsLabel} plain onPress={() => undefined} />
+        </Box>
+      ) : null}
     </Box>
   )
 }
