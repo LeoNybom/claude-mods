@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, On } from 'claude-code'
+import type { EngineInterface, On, RenderInput } from 'claude-code'
 
 type Engine = EngineInterface
 
@@ -87,6 +87,114 @@ async function checkToolbox($: Engine): Promise<boolean> {
   return hasToolbox
 }
 
+/** Draws the bar for a site `columns` cells wide. */
+async function drawBar(
+  $: Engine,
+  e: RenderInput<'AbovePrompt' | 'PromptHint'>,
+  columns: number,
+  isWorking: boolean,
+): Promise<unknown> {
+  const { Box, Text, Button } = $.ui.resolve(e)
+  await read($, tickAtom)
+
+  const usage = await $.session.usage()
+  const model = (await read($, modelAtom)) ?? (await $.session.model())
+  const effort = await read($, effortAtom)
+  const agents = (await $.agent.list()).filter(a => a.status === 'running' || a.status === 'pending').length
+  const showTools = await checkToolbox($)
+
+  const parts: Part[] = []
+  const plan = usage.rateLimits.length > 0 ? 'Subscription' : 'API'
+  parts.push({ priority: 5, width: 2 + plan.length, node: <Text color="success">◆ {plan}</Text> })
+
+  const modelText = modelLabel(model)
+  parts.push({
+    priority: 1,
+    width: 2 + modelText.length,
+    node: (
+      <Text bold color="suggestion">
+        ◆ {modelText}
+      </Text>
+    ),
+  })
+
+  if (effort !== null) {
+    parts.push({
+      priority: 3,
+      width: 7 + effort.length,
+      node: (
+        <Text>
+          <Text dimColor>effort </Text>
+          <Text color="claude">{effort}</Text>
+        </Text>
+      ),
+    })
+  }
+
+  const ctx = Math.round(usage.context.percent ?? 0)
+  parts.push({
+    priority: 2,
+    width: 4 + METER + 1 + `${ctx}%`.length,
+    node: (
+      <Text>
+        <Text dimColor>ctx </Text>
+        <Text color={levelColor(ctx)}>{meter(ctx)}</Text>
+        <Text color={levelColor(ctx)}> {ctx}%</Text>
+      </Text>
+    ),
+  })
+
+  const limits = usage.rateLimits
+    .map(limit => ({
+      name: limit.kind === 'five_hour' ? '5h' : limit.kind === 'seven_day' ? '7d' : '',
+      percent: Math.round(limit.percentUsed),
+    }))
+    .filter(limit => limit.name !== '')
+  if (limits.length > 0) {
+    parts.push({
+      priority: 4,
+      width: limits.reduce((sum, l) => sum + l.name.length + 1 + `${l.percent}%`.length, 0) + (limits.length - 1) * 3,
+      node: (
+        <Text>
+          {limits.map((l, i) => (
+            <Text>
+              <Text dimColor>
+                {i > 0 ? ' · ' : ''}
+                {l.name}{' '}
+              </Text>
+              <Text color={levelColor(l.percent)}>{l.percent}%</Text>
+            </Text>
+          ))}
+        </Text>
+      ),
+    })
+  }
+
+  const agentText = `◇ ${agents} ${agents === 1 ? 'agent' : 'agents'}`
+  parts.push({ priority: 6, width: agentText.length, node: <Text dimColor>{agentText}</Text> })
+
+  const prefix = isWorking ? 'esc to interrupt · ' : ''
+  const toolsLabel = '◆ Tools ▲'
+  const room = columns - 2 - prefix.length - (showTools ? toolsLabel.length + 4 : 0)
+  const kept = fitParts(parts, room)
+
+  const left: unknown[] = []
+  if (prefix !== '') left.push(<Text dimColor>{prefix}</Text>)
+  kept.forEach((part, i) => {
+    if (i > 0) left.push(<Text dimColor>{SEPARATOR}</Text>)
+    left.push(part.node)
+  })
+
+  return (
+    <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+      <Box flexDirection="row" flexShrink={1} overflow="hidden">
+        {left}
+      </Box>
+      {showTools ? <Button key="open-tools" label={toolsLabel} plain onPress={() => undefined} /> : null}
+    </Box>
+  )
+}
+
 export function registerInfobar(on: On): void {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -94,8 +202,9 @@ export function registerInfobar(on: On): void {
       description: 'Turn the Infobar on or off (no argument flips it)',
       argumentHint: 'on|off',
     })
+    // Always written, so the Tools box knows the Infobar is installed.
     const saved = await $.store.get(STORE_KEY)
-    if (typeof saved === 'boolean') await update($, enabledAtom, () => saved)
+    await update($, enabledAtom, () => (typeof saved === 'boolean' ? saved : true))
     return next(e)
   })
 
@@ -103,7 +212,13 @@ export function registerInfobar(on: On): void {
     const arg = e.args.trim().toLowerCase()
     const value = arg === 'on' ? true : arg === 'off' ? false : !(await read($, enabledAtom))
     await setEnabled($, value)
-    return { text: value ? 'Infobar is on.' : 'Infobar is off.' }
+    return {}
+  })
+
+  // Its row in the Tools box.
+  on('ui.press', { plugin: 'toolbox', element: 'mod:infobar' }, async ($, e, next) => {
+    await toggle($)
+    return next(e)
   })
 
   // --- What the session is really using ---
@@ -148,132 +263,22 @@ export function registerInfobar(on: On): void {
     return result
   })
 
-  // --- Its own row in the Tools panel ---
-  on('ui.render', { component: 'Pane', requestId: 'toolbox' }, async ($, e, next) => {
-    const above = await next(e)
-    const { Box, Text, Button } = $.ui.resolve(e)
-    const enabled = await read($, enabledAtom)
-    return (
-      <Box flexDirection="column">
-        {above ?? null}
-        <Box flexDirection="row" justifyContent="space-between">
-          <Box flexDirection="row">
-            <Text color={enabled ? 'success' : 'inactive'}>{enabled ? '● ' : '○ '}</Text>
-            <Text bold>{'Infobar'.padEnd(14)}</Text>
-            <Text dimColor>info bar at the bottom</Text>
-          </Box>
-          <Button
-            key="toolbox-row:infobar"
-            label={enabled ? '● On' : '○ Off'}
-            variant={enabled ? 'primary' : 'secondary'}
-            onPress={() => toggle($)}
-          />
-        </Box>
-      </Box>
-    )
+  // --- In the terminal: the line under the prompt ---
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' || !(await read($, enabledAtom))) return next(e)
+    return (await drawBar($, e, e.viewport?.columns ?? 100, e.props.isWorking)) as never
   })
 
-  // --- The bar under the prompt ---
-  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    if (!(await read($, enabledAtom))) return next(e)
-    const { Box, Text, Button } = $.ui.resolve(e)
-    await read($, tickAtom)
-
-    const columns = e.viewport?.columns ?? 100
-    const usage = await $.session.usage()
-    const model = (await read($, modelAtom)) ?? (await $.session.model())
-    const effort = await read($, effortAtom)
-    const agents = (await $.agent.list()).filter(a => a.status === 'running' || a.status === 'pending').length
-    const showTools = await checkToolbox($)
-
-    const parts: Part[] = []
-    const plan = usage.rateLimits.length > 0 ? 'Subscription' : 'API'
-    parts.push({
-      priority: 5,
-      width: 2 + plan.length,
-      node: <Text color="success">◆ {plan}</Text>,
-    })
-    const modelText = modelLabel(model)
-    parts.push({
-      priority: 1,
-      width: 2 + modelText.length,
-      node: (
-        <Text bold color="suggestion">
-          ◆ {modelText}
-        </Text>
-      ),
-    })
-    if (effort !== null) {
-      parts.push({
-        priority: 3,
-        width: 7 + effort.length,
-        node: (
-          <Box flexDirection="row">
-            <Text dimColor>effort </Text>
-            <Text color="claude">{effort}</Text>
-          </Box>
-        ),
-      })
-    }
-    const ctx = Math.round(usage.context.percent ?? 0)
-    parts.push({
-      priority: 2,
-      width: 4 + METER + 1 + `${ctx}%`.length,
-      node: (
-        <Box flexDirection="row">
-          <Text dimColor>ctx </Text>
-          <Text color={levelColor(ctx)}>{meter(ctx)}</Text>
-          <Text color={levelColor(ctx)}> {ctx}%</Text>
-        </Box>
-      ),
-    })
-    const limits = usage.rateLimits
-      .map(limit => ({
-        name: limit.kind === 'five_hour' ? '5h' : limit.kind === 'seven_day' ? '7d' : '',
-        percent: Math.round(limit.percentUsed),
-      }))
-      .filter(limit => limit.name !== '')
-    if (limits.length > 0) {
-      parts.push({
-        priority: 4,
-        width: limits.reduce((sum, l) => sum + l.name.length + 1 + `${l.percent}%`.length, 0) + (limits.length - 1) * 3,
-        node: (
-          <Box flexDirection="row">
-            {limits.map((l, i) => (
-              <Box flexDirection="row">
-                <Text dimColor>{i > 0 ? ' · ' : ''}{l.name} </Text>
-                <Text color={levelColor(l.percent)}>{l.percent}%</Text>
-              </Box>
-            ))}
-          </Box>
-        ),
-      })
-    }
-    const agentText = `◇ ${agents} ${agents === 1 ? 'agent' : 'agents'}`
-    parts.push({ priority: 6, width: agentText.length, node: <Text dimColor>{agentText}</Text> })
-
-    const prefix = e.props.isWorking ? 'esc to interrupt · ' : ''
-    const toolsLabel = '◆ Tools ▲'
-    const room = columns - 2 - prefix.length - (showTools ? toolsLabel.length + 2 : 0)
-    const kept = fitParts(parts, room)
-
-    const left: unknown[] = []
-    if (prefix !== '') left.push(<Text dimColor>{prefix}</Text>)
-    kept.forEach((part, i) => {
-      if (i > 0) left.push(<Text dimColor>{SEPARATOR}</Text>)
-      left.push(part.node)
-    })
-
+  // --- In the desktop app: the last line of the band right above the prompt ---
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const rest = await next(e)
+    if (e.surface === 'terminal' || e.props.hasSurvey || !(await read($, enabledAtom))) return rest
+    const { Box } = $.ui.resolve(e)
+    const bar = await drawBar($, e, e.props.bodyColumns, e.props.isWorking)
     return (
-      <Box flexDirection="row" justifyContent="space-between">
-        <Box flexDirection="row">{left}</Box>
-        {showTools ? (
-          <Button key="open-tools" plain onPress={() => undefined}>
-            <Text bold color="claude">
-              {toolsLabel}
-            </Text>
-          </Button>
-        ) : null}
+      <Box flexDirection="column">
+        {rest ?? null}
+        {bar}
       </Box>
     )
   })

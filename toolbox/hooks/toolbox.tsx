@@ -5,7 +5,6 @@ import type { ToolboxEffort } from '../types'
 
 type Engine = EngineInterface
 
-const PANE = 'toolbox'
 const TITLE = 'Tools'
 
 export const MODELS = [
@@ -24,12 +23,18 @@ export const EFFORTS: readonly { level: ToolboxEffort; label: string }[] = [
 ]
 
 const QUICK = [
-  { command: 'compact', icon: '✦', label: 'Shrink this chat (/compact)' },
-  { command: 'clear', icon: '◇', label: 'Start a new chat (/clear)' },
+  { command: 'compact', icon: '✦', label: 'Shrink this chat' },
+  { command: 'clear', icon: '◇', label: 'Start a new chat' },
 ] as const
 
 const effortAtom = atom({ plugin: 'toolbox', key: 'effort' } as const, null)
 const revisionAtom = atom({ plugin: 'toolbox', key: 'revision' } as const, 0)
+const openAtom = atom({ plugin: 'toolbox', key: 'isOpen' } as const, false)
+
+// The mods the panel knows. A mod shows up once it has written its on/off value;
+// it answers the press on its own row (`mod:<plugin>`) itself.
+const cleanViewRef = { plugin: 'clean-view', key: 'cleanViewEnabled' } as const
+const infobarRef = { plugin: 'infobar', key: 'enabled' } as const
 
 /** "claude-opus-5-5" → "Opus 5.5"; anything unknown is shown as given. */
 export function modelLabel(id: string): string {
@@ -46,17 +51,12 @@ function spaced(text: string): string {
   return text.split('').join(' ')
 }
 
-async function isOpen($: Engine): Promise<boolean> {
-  return (await $.ui.panes()).some(pane => pane.id === PANE)
+async function toggleOpen($: Engine): Promise<void> {
+  await update($, openAtom, open => !open)
 }
 
-async function openToolbox($: Engine): Promise<void> {
-  await $.ui.open({ id: PANE, title: TITLE, focus: true, closeOnEscape: true })
-}
-
-async function toggleToolbox($: Engine): Promise<void> {
-  if (await isOpen($)) await $.ui.close({ id: PANE })
-  else await openToolbox($)
+async function close($: Engine): Promise<void> {
+  await update($, openAtom, () => false)
 }
 
 async function setModel($: Engine, alias: string, label: string): Promise<void> {
@@ -76,23 +76,30 @@ async function setEffort($: Engine, level: ToolboxEffort, label: string): Promis
 }
 
 async function runQuick($: Engine, command: string): Promise<void> {
+  await close($)
   await $.command.run({ command })
+}
+
+async function readFlag($: Engine, which: 'clean-view' | 'infobar'): Promise<boolean | undefined> {
+  const held = which === 'clean-view' ? await $.state.get(cleanViewRef) : await $.state.get(infobarRef)
+  return typeof held.value === 'boolean' ? held.value : undefined
 }
 
 export function registerToolbox(on: On): void {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'toolbox', description: 'Open or close the Tools panel' })
+    await $.command.register({ name: 'toolbox', description: 'Open or close the Tools box' })
     return next(e)
   })
 
+  // Answers quietly: the box opening is the answer.
   on('command.run', { command: 'toolbox' }, async $ => {
-    await toggleToolbox($)
-    return { text: 'Tools panel toggled.' }
+    await toggleOpen($)
+    return {}
   })
 
-  // The Infobar's "◆ Tools ▲" button opens and closes the panel.
+  // The Infobar's "◆ Tools ▲" button opens and closes the box.
   on('ui.press', { plugin: 'infobar', element: 'open-tools' }, async ($, e, next) => {
-    await toggleToolbox($)
+    await toggleOpen($)
     return next(e)
   })
 
@@ -118,73 +125,112 @@ export function registerToolbox(on: On): void {
     return result
   })
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
+  // The box sits above the prompt, above the other mods' rows there.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const rest = await next(e)
+    if (e.props.hasSurvey || !(await read($, openAtom))) return rest
+
     const { Box, Text, Button } = $.ui.resolve(e)
-    const width = Math.max(30, e.props.bodyColumns)
     await read($, revisionAtom)
     const modelId = await $.session.model()
     const effort = await read($, effortAtom)
     const effortLabel = EFFORTS.find(x => x.level === effort)?.label
-
-    // Rows other mods add beneath (they draw next(e) first, then their own row).
-    const below = await next(e)
-
-    const divider = (name: string) => {
-      const head = `── ${spaced(name)} `
-      return <Text dimColor>{head + '─'.repeat(Math.max(0, width - head.length))}</Text>
-    }
-
     const status = effortLabel ? `${modelLabel(modelId)} · ${effortLabel}` : modelLabel(modelId)
 
-    return (
-      <Box flexDirection="column">
+    const section = (name: string) => (
+      <Box flexDirection="row" marginTop={1}>
+        <Text dimColor>── {spaced(name)} </Text>
+        <Box flexGrow={1} overflow="hidden">
+          <Text dimColor wrap="truncate-end">
+            {'─'.repeat(300)}
+          </Text>
+        </Box>
+      </Box>
+    )
+
+    const label = (text: string) => (
+      <Box width={9}>
+        <Text dimColor>{text}</Text>
+      </Box>
+    )
+
+    const mods: { plugin: 'clean-view' | 'infobar'; name: string; about: string }[] = [
+      { plugin: 'clean-view', name: 'Clean View', about: 'simple checklist' },
+      { plugin: 'infobar', name: 'Infobar', about: 'info bar under the prompt' },
+    ]
+    const modRows: unknown[] = []
+    for (const mod of mods) {
+      const isOn = await readFlag($, mod.plugin)
+      if (isOn === undefined) continue
+      modRows.push(
+        <Box flexDirection="row" justifyContent="space-between">
+          <Box flexDirection="row">
+            <Text color={isOn ? 'success' : 'inactive'}>{isOn ? '● ' : '○ '}</Text>
+            <Box width={14}>
+              <Text bold>{mod.name}</Text>
+            </Box>
+            <Text dimColor>{mod.about}</Text>
+          </Box>
+          <Button
+            key={`mod:${mod.plugin}`}
+            label={isOn ? '● On' : '○ Off'}
+            variant={isOn ? 'primary' : 'secondary'}
+            onPress={() => undefined}
+          />
+        </Box>,
+      )
+    }
+
+    const box = (
+      <Box flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
         <Box flexDirection="row" justifyContent="space-between">
           <Text bold color="claude">
-            ◆ {' '}
-            {spaced(TITLE.toUpperCase())}
+            ◆ {spaced(TITLE.toUpperCase())}
           </Text>
-          <Text dimColor>{status}</Text>
+          <Box flexDirection="row" gap={2}>
+            <Text dimColor>{status}</Text>
+            <Button key="close" label="✕" plain role="dismiss" onPress={() => close($)} />
+          </Box>
         </Box>
-        <Text> </Text>
-        <Box flexDirection="row" flexWrap="wrap">
-          <Text dimColor>{'MODEL'.padEnd(9)}</Text>
-          {MODELS.map(m =>
-            modelId.toLowerCase().includes(m.alias) ? (
-              <Button key={`model:${m.alias}`} plain onPress={() => setModel($, m.alias, m.label)}>
-                <Text inverse color="claude">{` ${m.label} `}</Text>
-              </Button>
-            ) : (
-              <Button key={`model:${m.alias}`} plain onPress={() => setModel($, m.alias, m.label)}>
-                {` ${m.label} `}
-              </Button>
-            ),
-          )}
+        <Box flexDirection="row" marginTop={1} flexWrap="wrap" gap={1}>
+          {label('MODEL')}
+          {MODELS.map(m => (
+            <Button
+              key={`model:${m.alias}`}
+              label={m.label}
+              variant={modelId.toLowerCase().includes(m.alias) ? 'primary' : 'secondary'}
+              onPress={() => setModel($, m.alias, m.label)}
+            />
+          ))}
         </Box>
-        <Box flexDirection="row" flexWrap="wrap">
-          <Text dimColor>{'EFFORT'.padEnd(9)}</Text>
-          {EFFORTS.map(x =>
-            x.level === effort ? (
-              <Button key={`effort:${x.level}`} plain onPress={() => setEffort($, x.level, x.label)}>
-                <Text inverse color="suggestion">{` ${x.label} `}</Text>
-              </Button>
-            ) : (
-              <Button key={`effort:${x.level}`} plain onPress={() => setEffort($, x.level, x.label)}>
-                {` ${x.label} `}
-              </Button>
-            ),
-          )}
+        <Box flexDirection="row" flexWrap="wrap" gap={1}>
+          {label('EFFORT')}
+          {EFFORTS.map(x => (
+            <Button
+              key={`effort:${x.level}`}
+              label={x.label}
+              variant={x.level === effort ? 'primary' : 'secondary'}
+              onPress={() => setEffort($, x.level, x.label)}
+            />
+          ))}
         </Box>
-        {divider('QUICK')}
-        <Box flexDirection="row" flexWrap="wrap" columnGap={4}>
+        {section('MODS')}
+        {modRows.length > 0 ? modRows : <Text dimColor>No mods installed yet</Text>}
+        {section('QUICK')}
+        <Box flexDirection="row" flexWrap="wrap" gap={2}>
           {QUICK.map(q => (
             <Button key={`quick:${q.command}`} plain onPress={() => runQuick($, q.command)}>
-              <Text color="claude">{q.icon}</Text>
-              {` ${q.label}`}
+              <Text color="claude">{q.icon}</Text> {q.label}
             </Button>
           ))}
         </Box>
-        {divider('MODS')}
-        {below ?? <Text dimColor>No mods yet</Text>}
+      </Box>
+    )
+
+    return (
+      <Box flexDirection="column">
+        {box}
+        {rest ?? null}
       </Box>
     )
   })

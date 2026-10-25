@@ -14,12 +14,12 @@ Makes Claude Code calm and friendly for people who aren't technical. While Claud
 
 One panel for everything: switch the model and effort with one click, turn each mod on or off, and run quick actions (`/compact`, `/clear`).
 
-- Open or close it by clicking **◆ Tools ▲** at the right of the Infobar, or type `/toolbox`. Esc closes it too.
-- Every mod adds its own on/off row under MODS by itself.
+- It opens as a framed box right above the prompt. Open or close it by clicking **◆ Tools ▲** at the right of the Infobar, or type `/toolbox`; ✕ closes it too.
+- Clean View and Infobar each get an on/off row under MODS once they are installed.
 
 ## Infobar
 
-One line under the prompt: your plan, model, effort, how full the chat is (green, then yellow at 60%, red at 85%), your 5-hour and 7-day usage, and running agents. On a narrow screen the least important parts are left out first.
+One line under the prompt (in the desktop app: right above it): your plan, model, effort, how full the chat is (green, then yellow at 60%, red at 85%), your 5-hour and 7-day usage, and running agents. On a narrow screen the least important parts are left out first.
 
 - Turn it on or off from the Tools panel, or type `/infobar on`, `/infobar off` or just `/infobar`.
 

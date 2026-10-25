@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, On } from 'claude-code'
+import type { EngineInterface, On, RenderInput } from 'claude-code'
 
 import type { CleanViewChecklist, CleanViewTask } from '../types'
 
@@ -368,8 +368,9 @@ export function registerCleanView(on: On): void {
       description: 'Turn Clean View on or off (no argument flips it)',
       argumentHint: 'on|off',
     })
+    // Always written, so the Tools box knows Clean View is installed.
     const saved = await $.store.get(STORE_KEY)
-    if (typeof saved === 'boolean') await update($, enabledAtom, () => saved)
+    await update($, enabledAtom, () => (typeof saved === 'boolean' ? saved : true))
     syncTicker($, await read($, checklistAtom))
     return next(e)
   })
@@ -579,34 +580,30 @@ export function registerCleanView(on: On): void {
     return next({ ...e, props: { ...e.props, hint: '' } })
   })
 
-  // --- Its own row in the Tools panel (the Toolbox mod) ---
-  on('ui.render', { component: 'Pane', requestId: 'toolbox' }, async ($, e, next) => {
-    const above = await next(e)
-    const { Box, Text, Button } = $.ui.resolve(e)
-    const enabled = await read($, enabledAtom)
+  // --- Its row in the Tools box (the Toolbox mod) ---
+  on('ui.press', { plugin: 'toolbox', element: 'mod:clean-view' }, async ($, e, next) => {
+    await toggle($)
+    return next(e)
+  })
+
+  // --- The checklist band above the prompt, shared with the other mods ---
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const rest = await next(e)
+    if (e.props.hasSurvey) return rest
+    const { Box } = $.ui.resolve(e)
+    const mine = await drawBand($, e)
     return (
       <Box flexDirection="column">
-        {above ?? null}
-        <Box flexDirection="row" justifyContent="space-between">
-          <Box flexDirection="row">
-            <Text color={enabled ? 'success' : 'inactive'}>{enabled ? '● ' : '○ '}</Text>
-            <Text bold>{'Clean View'.padEnd(14)}</Text>
-            <Text dimColor>simple checklist</Text>
-          </Box>
-          <Button
-            key="toolbox-row:clean-view"
-            label={enabled ? '● On' : '○ Off'}
-            variant={enabled ? 'primary' : 'secondary'}
-            onPress={() => toggle($)}
-          />
-        </Box>
+        {mine}
+        {rest ?? null}
       </Box>
     )
   })
+}
 
-  // --- The checklist band above the prompt ---
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
+/** Clean View's own part of the band: the button, and the checklist while a job runs. */
+async function drawBand($: Engine, e: RenderInput<'AbovePrompt'>): Promise<unknown> {
+  {
     const { Box, Text, Button } = $.ui.resolve(e)
     const enabled = await read($, enabledAtom)
     const columns = Math.max(20, e.props.bodyColumns)
@@ -724,5 +721,5 @@ export function registerCleanView(on: On): void {
         {rows}
       </Box>
     )
-  })
+  }
 }

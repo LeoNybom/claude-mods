@@ -9,6 +9,12 @@ const HINT = {
   props: { isDraft: false, isWorking: false, hint: '? for shortcuts' },
 } as const
 
+const BAND = {
+  plugin: 'infobar',
+  component: 'AbovePrompt',
+  props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 160, scroll: { offset: 0, bodyRows: 20 }, view: {} },
+} as const
+
 const USAGE = {
   startedAt: 0,
   context: { tokens: 180_000, window: 1_000_000, percent: 18 },
@@ -54,8 +60,12 @@ test('the bar shows plan, model, effort, context, limits, agents and the Tools b
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await $.command.run({ command: 'effort', args: 'medium', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 140 } })
 
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const ui = await $.ui.mount({ ...HINT, surface, viewport: { columns: 160, rows: 40 } })
+  const sites = [
+    { ...HINT, surface: 'terminal' as const, viewport: { columns: 160, rows: 40 } },
+    { ...BAND, surface: 'desktop' as const },
+  ]
+  for (const site of sites) {
+    const ui = await $.ui.mount(site as never)
     expect(await ui.find({ type: 'Text', text: /Subscription/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'medium' })).toBeDefined()
@@ -86,19 +96,14 @@ test('/infobar off gives the normal hint back', async ($, on) => {
   await ui.unmount()
 })
 
-test('its row in the Tools panel turns it off and on', async ($, on) => {
+test('the desktop draws the bar under the rest of the band, the terminal leaves the band alone', async ($, on) => {
   engine(on)
-  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  const PANE = {
-    plugin: 'infobar',
-    component: 'Pane',
-    requestId: 'toolbox',
-    props: { title: 'Tools', isFocused: true, bodyColumns: 70, placement: 'inline', scroll: { offset: 0, bodyRows: 20 }, view: {} },
-  } as const
-  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  let ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /engine hint/ })).toBeDefined()
-  expect((await ui.find({ type: 'Button', key: 'toolbox-row:infobar' }))?.props.label).toBe('● On')
-  await ui.press({ key: 'toolbox-row:infobar' })
-  expect((await ui.find({ type: 'Button', key: 'toolbox-row:infobar' }))?.props.label).toBe('○ Off')
+  expect(await ui.find({ type: 'Text', text: /Opus 5.5/ })).toBeDefined()
+  await ui.unmount()
+  ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Opus 5.5/ })).toBeUndefined()
   await ui.unmount()
 })

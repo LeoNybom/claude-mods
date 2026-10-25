@@ -1,20 +1,43 @@
 import { expect, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
 
 import { modelLabel } from '../hooks/toolbox'
 
-const PANE = {
+const BAND = {
   plugin: 'toolbox',
-  component: 'Pane',
-  requestId: 'toolbox',
+  component: 'AbovePrompt',
   props: {
-    title: 'Tools',
-    isFocused: true,
-    bodyColumns: 70,
-    placement: 'inline',
-    scroll: { offset: 0, bodyRows: 20 },
+    hasSurvey: false,
+    isWorking: false,
+    maxRows: 30,
+    bodyColumns: 90,
+    scroll: { offset: 0, bodyRows: 30 },
     view: {},
   },
 } as const
+
+const RUN = { origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } } as const
+
+function engine(on: On, log: { configSets: unknown[]; commands: string[] }) {
+  let model = 'claude-opus-5-5'
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.model', () => ({ value: model }))
+  on('config.set', (_, e) => {
+    log.configSets.push(e.value)
+    model = `claude-${String(e.value)}-5-5`
+    return { value: e.value }
+  })
+  on('command.run', (_, e) => {
+    log.commands.push(`${e.command} ${e.args}`.trim())
+    return { text: '' }
+  })
+  on('ui.toast', () => ({ value: undefined }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>the rest of the band</Text>
+  })
+}
 
 test('model ids read as friendly names', () => {
   expect(modelLabel('claude-opus-5-5')).toBe('Opus 5.5')
@@ -22,49 +45,52 @@ test('model ids read as friendly names', () => {
   expect(modelLabel('something-else')).toBe('something-else')
 })
 
-test('the panel shows the title, model, effort, quick actions and mods', async ($, on) => {
-  let model = 'claude-opus-5-5'
-  const configSets: unknown[] = []
-  const commands: string[] = []
-  on('command.register', (_, e) => ({ value: { command: e.name } }))
-  on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('session.model', () => ({ value: model }))
-  on('config.set', (_, e) => {
-    configSets.push(e.value)
-    model = `claude-${String(e.value)}-5-5`
-    return { value: e.value }
-  })
-  on('command.run', (_, e) => {
-    commands.push(`${e.command} ${e.args}`.trim())
-    return { text: '' }
-  })
-  on('ui.toast', () => ({ value: undefined }))
-  on('ui.render', ($, e) => {
-    const { Text } = $.ui.resolve(e)
-    return <Text>● Clean View row</Text>
-  })
+test('the box is closed until /toolbox opens it, and closes again', async ($, on) => {
+  engine(on, { configSets: [], commands: [] })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
 
+  let ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /T O O L S/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /the rest of the band/ })).toBeDefined()
+  await ui.unmount()
+
+  const answer = await $.command.run({ command: 'toolbox', args: '', ...RUN })
+  expect(answer.text).toBeUndefined()
+  ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /T O O L S/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /the rest of the band/ })).toBeDefined()
+  await ui.press({ key: 'close' })
+  expect(await ui.find({ type: 'Text', text: /T O O L S/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the box shows model, effort, mods and quick actions, and the buttons work', async ($, on) => {
+  const log = { configSets: [] as unknown[], commands: [] as string[] }
+  engine(on, log)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'toolbox', args: '', ...RUN })
+
   for (const surface of ['terminal', 'desktop'] as const) {
-    const ui = await $.ui.mount({ ...PANE, surface })
-    expect(await ui.find({ type: 'Text', text: /T O O L S/ })).toBeDefined()
-    expect(await ui.find({ type: 'Button', key: 'model:haiku' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: ' Opus 5.5 ' })).toMatchObject({ props: { inverse: true } })
+    const ui = await $.ui.mount({ ...BAND, surface })
+    expect(await ui.find({ type: 'Button', key: 'model:opus' })).toMatchObject({ props: { variant: 'primary' } })
+    expect(await ui.find({ type: 'Button', key: 'model:haiku' })).toMatchObject({ props: { variant: 'secondary' } })
     expect(await ui.find({ type: 'Button', key: 'effort:xhigh' })).toBeDefined()
-    expect(await ui.find({ type: 'Button', key: 'quick:compact' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /M O D S/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /Clean View row/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /No mods installed yet/ })).toBeDefined()
+    expect(await ui.find({ type: 'Button', key: 'quick:compact' })).toBeDefined()
     await ui.unmount()
   }
 
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   await ui.press({ key: 'model:haiku' })
-  expect(configSets).toEqual(['haiku'])
+  expect(log.configSets).toEqual(['haiku'])
+  expect(await ui.find({ type: 'Button', key: 'model:haiku' })).toMatchObject({ props: { variant: 'primary' } })
   await ui.press({ key: 'effort:high' })
-  expect(commands).toContain('effort high')
-  expect(await ui.find({ type: 'Text', text: ' High ' })).toMatchObject({ props: { inverse: true } })
+  expect(log.commands).toContain('effort high')
+  expect(await ui.find({ type: 'Button', key: 'effort:high' })).toMatchObject({ props: { variant: 'primary' } })
   expect(await ui.find({ type: 'Text', text: /Haiku 5\.5 · High/ })).toBeDefined()
   await ui.press({ key: 'quick:compact' })
-  expect(commands).toContain('compact')
+  expect(log.commands).toContain('compact')
+  expect(await ui.find({ type: 'Text', text: /T O O L S/ })).toBeUndefined()
   await ui.unmount()
 })
