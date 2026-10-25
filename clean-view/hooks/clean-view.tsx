@@ -579,6 +579,31 @@ export function registerCleanView(on: On): void {
     return next({ ...e, props: { ...e.props, hint: '' } })
   })
 
+  // --- Its own row in the Tools panel (the Toolbox mod) ---
+  on('ui.render', { component: 'Pane', requestId: 'toolbox' }, async ($, e, next) => {
+    const above = await next(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const enabled = await read($, enabledAtom)
+    return (
+      <Box flexDirection="column">
+        {above ?? null}
+        <Box flexDirection="row" justifyContent="space-between">
+          <Box flexDirection="row">
+            <Text color={enabled ? 'success' : 'inactive'}>{enabled ? '● ' : '○ '}</Text>
+            <Text bold>{'Clean View'.padEnd(14)}</Text>
+            <Text dimColor>simple checklist</Text>
+          </Box>
+          <Button
+            key="toolbox-row:clean-view"
+            label={enabled ? '● On' : '○ Off'}
+            variant={enabled ? 'primary' : 'secondary'}
+            onPress={() => toggle($)}
+          />
+        </Box>
+      </Box>
+    )
+  })
+
   // --- The checklist band above the prompt ---
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)

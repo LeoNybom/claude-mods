@@ -1,11 +1,22 @@
 {
   "name": "leonybom-mods",
   "owner": { "name": "LeoNybom" },
+  "description": "Leo's mods for Claude Code: Clean View, Tools and Infobar.",
   "plugins": [
     {
       "name": "clean-view",
       "source": "./clean-view",
       "description": "A calm, friendly view: hides tool rows and shows one simple checklist of the plan above the prompt."
+    },
+    {
+      "name": "toolbox",
+      "source": "./toolbox",
+      "description": "Tools: one panel to switch model and effort, turn your mods on and off, and run quick actions."
+    },
+    {
+      "name": "infobar",
+      "source": "./infobar",
+      "description": "Infobar: one line under the prompt with your plan, model, effort, how full the chat is, usage limits and running agents."
     }
   ]
 }

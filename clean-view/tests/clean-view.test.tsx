@@ -183,3 +183,18 @@ test('extra: tool rows are hidden while on and shown while off', async ($, on) =
   expect(await ui.find({ type: 'Text', text: /engine row/ })).toBeDefined()
   await ui.unmount()
 })
+
+test('extra: its row in the Tools panel turns Clean View off', async ($, on) => {
+  await setup($, on)
+  const PANE = {
+    plugin: 'clean-view',
+    component: 'Pane',
+    requestId: 'toolbox',
+    props: { title: 'Tools', isFocused: true, bodyColumns: 70, placement: 'inline', scroll: { offset: 0, bodyRows: 20 }, view: {} },
+  } as const
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Button', key: 'toolbox-row:clean-view' }))?.props.label).toBe('● On')
+  await ui.press({ key: 'toolbox-row:clean-view' })
+  expect((await ui.find({ type: 'Button', key: 'toolbox-row:clean-view' }))?.props.label).toBe('○ Off')
+  await ui.unmount()
+})

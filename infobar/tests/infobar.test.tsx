@@ -1,0 +1,104 @@
+import { expect, mock, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
+
+import { fitParts, levelColor, meter, modelLabel } from '../hooks/infobar'
+
+const HINT = {
+  plugin: 'infobar',
+  component: 'PromptHint',
+  props: { isDraft: false, isWorking: false, hint: '? for shortcuts' },
+} as const
+
+const USAGE = {
+  startedAt: 0,
+  context: { tokens: 180_000, window: 1_000_000, percent: 18 },
+  rateLimits: [
+    { kind: 'five_hour', percentUsed: 12, source: 'api' },
+    { kind: 'seven_day', percentUsed: 54, source: 'api' },
+  ],
+}
+
+function engine(on: On, commands: string[] = ['toolbox']) {
+  mock.store(on)
+  mock.clock(on)
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('command.list', () => ({ value: commands.map(name => ({ name, description: '', source: 'plugin' })) }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.usage', () => ({ value: USAGE }))
+  on('session.model', () => ({ value: 'claude-opus-5-5' }))
+  on('agent.list', () => ({ value: [] }))
+  on('command.run', () => ({ text: '' }))
+  on('ui.toast', () => ({ value: undefined }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine hint</Text>
+  })
+}
+
+test('small helpers', () => {
+  expect(modelLabel('claude-sonnet-5-5')).toBe('Sonnet 5.5')
+  expect(meter(18)).toBe('▰▰▱▱▱▱▱▱▱▱')
+  expect(levelColor(10)).toBe('success')
+  expect(levelColor(60)).toBe('warning')
+  expect(levelColor(90)).toBe('error')
+  const parts = [
+    { width: 10, priority: 1 },
+    { width: 10, priority: 3 },
+    { width: 10, priority: 2 },
+  ]
+  expect(fitParts(parts, 23).map(p => p.priority)).toEqual([1, 2])
+})
+
+test('the bar shows plan, model, effort, context, limits, agents and the Tools button', async ($, on) => {
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'effort', args: 'medium', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 140 } })
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...HINT, surface, viewport: { columns: 160, rows: 40 } })
+    expect(await ui.find({ type: 'Text', text: /Subscription/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'medium' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '▰▰▱▱▱▱▱▱▱▱' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '54%' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /0 agents/ })).toBeDefined()
+    expect(await ui.find({ type: 'Button', key: 'open-tools' })).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('a narrow window drops the least important parts first', async ($, on) => {
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount({ ...HINT, surface: 'terminal', viewport: { columns: 50, rows: 40 } })
+  expect(await ui.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /agents/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Subscription/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('/infobar off gives the normal hint back', async ($, on) => {
+  engine(on, [])
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'infobar', args: 'off', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
+  const ui = await $.ui.mount({ ...HINT, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /engine hint/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('its row in the Tools panel turns it off and on', async ($, on) => {
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const PANE = {
+    plugin: 'infobar',
+    component: 'Pane',
+    requestId: 'toolbox',
+    props: { title: 'Tools', isFocused: true, bodyColumns: 70, placement: 'inline', scroll: { offset: 0, bodyRows: 20 }, view: {} },
+  } as const
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /engine hint/ })).toBeDefined()
+  expect((await ui.find({ type: 'Button', key: 'toolbox-row:infobar' }))?.props.label).toBe('● On')
+  await ui.press({ key: 'toolbox-row:infobar' })
+  expect((await ui.find({ type: 'Button', key: 'toolbox-row:infobar' }))?.props.label).toBe('○ Off')
+  await ui.unmount()
+})
