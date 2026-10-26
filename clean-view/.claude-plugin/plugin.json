@@ -1,6 +1,6 @@
 {
   "name": "clean-view",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A calm, friendly view: hides tool rows and shows one simple checklist of the plan above the prompt.",
   "types": "./types/index.d.ts"
 }

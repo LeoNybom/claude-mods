@@ -68,6 +68,8 @@ claude plugin update prompt-upgrade@leonybom-mods
 
 Then type `/reload-plugins` in a running session, or start a new one.
 
+Every change to a mod raises its version number, so these commands always find the newest one. What changed in each version is in [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
