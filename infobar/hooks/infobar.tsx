@@ -105,7 +105,7 @@ async function drawBar(
 
   const parts: Part[] = []
   const plan = usage.rateLimits.length > 0 ? 'Subscription' : 'API'
-  parts.push({ priority: 5, width: 2 + plan.length, node: <Text color="success">◆ {plan}</Text> })
+  parts.push({ priority: 6, width: 2 + plan.length, node: <Text color="success">◆ {plan}</Text> })
 
   const modelText = modelLabel(model)
   parts.push({
@@ -120,7 +120,7 @@ async function drawBar(
 
   if (effort !== null) {
     parts.push({
-      priority: 3,
+      priority: 4,
       width: 7 + effort.length,
       node: (
         <Text>
@@ -133,7 +133,7 @@ async function drawBar(
 
   const ctx = Math.round(usage.context.percent ?? 0)
   parts.push({
-    priority: 2,
+    priority: 3,
     width: 4 + METER + 1 + `${ctx}%`.length,
     node: (
       <Text>
@@ -152,7 +152,7 @@ async function drawBar(
     .filter(limit => limit.name !== '')
   if (limits.length > 0) {
     parts.push({
-      priority: 4,
+      priority: 2,
       width: limits.reduce((sum, l) => sum + l.name.length + 1 + `${l.percent}%`.length, 0) + (limits.length - 1) * 3,
       node: (
         <Text>
@@ -171,9 +171,10 @@ async function drawBar(
   }
 
   const agentText = `◇ ${agents} ${agents === 1 ? 'agent' : 'agents'}`
-  parts.push({ priority: 6, width: agentText.length, node: <Text dimColor>{agentText}</Text> })
+  parts.push({ priority: 5, width: agentText.length, node: <Text dimColor>{agentText}</Text> })
 
-  const prefix = isWorking ? 'esc to interrupt · ' : ''
+  // The desktop app has its own stop button, so the hint is for the terminal only.
+  const prefix = isWorking && e.surface === 'terminal' ? 'esc to interrupt · ' : ''
   const toolsLabel = '◆ Tools ▲'
   const room = columns - 2 - prefix.length - (showTools ? toolsLabel.length + 4 : 0)
   const kept = fitParts(parts, room)

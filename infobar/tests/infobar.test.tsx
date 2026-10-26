@@ -82,6 +82,9 @@ test('a narrow window drops the least important parts first', async ($, on) => {
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   const ui = await $.ui.mount({ ...HINT, surface: 'terminal', viewport: { columns: 50, rows: 40 } })
   expect(await ui.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
+  // Session (5h) and weekly (7d) usage come right after the model.
+  expect(await ui.find({ type: 'Text', text: '12%' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '54%' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /agents/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /Subscription/ })).toBeUndefined()
   await ui.unmount()
