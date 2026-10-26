@@ -56,8 +56,6 @@ claude plugin install prompt-upgrade --marketplace LeoNybom/claude-mods
 
 In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `LeoNybom/claude-mods`, then Add plugin.
 
-This repository is private: the computer must be able to read it on GitHub (for example `gh auth login` and then `gh auth setup-git`, or an SSH key).
-
 ## Update
 
 ```
@@ -69,3 +67,7 @@ claude plugin update prompt-upgrade@leonybom-mods
 ```
 
 Then type `/reload-plugins` in a running session, or start a new one.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
