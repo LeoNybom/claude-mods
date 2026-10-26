@@ -35,6 +35,9 @@ const openAtom = atom({ plugin: 'toolbox', key: 'isOpen' } as const, false)
 // it answers the press on its own row (`mod:<plugin>`) itself.
 const cleanViewRef = { plugin: 'clean-view', key: 'cleanViewEnabled' } as const
 const infobarRef = { plugin: 'infobar', key: 'enabled' } as const
+const promptUpgradeRef = { plugin: 'prompt-upgrade', key: 'auto' } as const
+
+type ModName = 'clean-view' | 'infobar' | 'prompt-upgrade'
 
 /** "claude-opus-5-5" → "Opus 5.5"; anything unknown is shown as given. */
 export function modelLabel(id: string): string {
@@ -80,8 +83,13 @@ async function runQuick($: Engine, command: string): Promise<void> {
   await $.command.run({ command })
 }
 
-async function readFlag($: Engine, which: 'clean-view' | 'infobar'): Promise<boolean | undefined> {
-  const held = which === 'clean-view' ? await $.state.get(cleanViewRef) : await $.state.get(infobarRef)
+async function readFlag($: Engine, which: ModName): Promise<boolean | undefined> {
+  const held =
+    which === 'clean-view'
+      ? await $.state.get(cleanViewRef)
+      : which === 'infobar'
+        ? await $.state.get(infobarRef)
+        : await $.state.get(promptUpgradeRef)
   return typeof held.value === 'boolean' ? held.value : undefined
 }
 
@@ -157,9 +165,10 @@ export function registerToolbox(on: On): void {
       </Box>
     )
 
-    const mods: { plugin: 'clean-view' | 'infobar'; name: string; about: string }[] = [
+    const mods: { plugin: ModName; name: string; about: string }[] = [
       { plugin: 'clean-view', name: 'Clean View', about: 'simple checklist' },
       { plugin: 'infobar', name: 'Infobar', about: 'info bar under the prompt' },
+      { plugin: 'prompt-upgrade', name: 'Prompt Upgrade', about: 'better prompts' },
     ]
     const modRows: unknown[] = []
     for (const mod of mods) {
@@ -169,7 +178,7 @@ export function registerToolbox(on: On): void {
         <Box flexDirection="row" justifyContent="space-between" alignItems="center">
           <Box flexDirection="row">
             <Text color={isOn ? 'success' : 'inactive'}>{isOn ? '● ' : '○ '}</Text>
-            <Box width={14}>
+            <Box width={17}>
               <Text bold>{mod.name}</Text>
             </Box>
             <Text dimColor>{mod.about}</Text>

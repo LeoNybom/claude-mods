@@ -1,7 +1,7 @@
 {
   "name": "leonybom-mods",
   "owner": { "name": "LeoNybom" },
-  "description": "Leo's mods for Claude Code: Clean View, Tools and Infobar.",
+  "description": "Leo's mods for Claude Code: Clean View, Tools, Infobar and Prompt Upgrade.",
   "plugins": [
     {
       "name": "clean-view",
@@ -17,6 +17,11 @@
       "name": "infobar",
       "source": "./infobar",
       "description": "Infobar: one line under the prompt with your plan, model, effort, how full the chat is, usage limits and running agents."
+    },
+    {
+      "name": "prompt-upgrade",
+      "source": "./prompt-upgrade",
+      "description": "Prompt Upgrade: turns a rough prompt into a great one in a pane, with a few quick questions, before anything is sent."
     }
   ]
 }

@@ -1,0 +1,6 @@
+{
+  "name": "prompt-upgrade",
+  "version": "0.1.0",
+  "description": "Prompt Upgrade: turns a rough prompt into a great one in a pane, with a few quick questions, before anything is sent.",
+  "types": "./types/index.d.ts"
+}
