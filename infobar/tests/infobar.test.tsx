@@ -57,7 +57,7 @@ test('small helpers', () => {
   expect(fitParts(parts, 23).map(p => p.priority)).toEqual([1, 2])
 })
 
-test('the bar shows plan, model, effort, context, limits, agents and the Tools button', async ($, on) => {
+test('the bar shows model, effort, context, limits, agents and the Tools button', async ($, on) => {
   engine(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await $.command.run({ command: 'effort', args: 'medium', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 140 } })
@@ -68,7 +68,7 @@ test('the bar shows plan, model, effort, context, limits, agents and the Tools b
   ]
   for (const site of sites) {
     const ui = await $.ui.mount(site as never)
-    expect(await ui.find({ type: 'Text', text: /Subscription/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Subscription/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'medium' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /54%/ })).toBeDefined()
@@ -92,7 +92,7 @@ test('the terminal uses glyph meters in terminal colors, the desktop one shared 
   expect((await desk.findAll({ type: 'Box' })).some(b => b.props.borderStyle === 'round')).toBe(true)
   expect(await desk.find({ type: 'Text', text: '▰▰▱▱▱▱▱▱▱▱' })).toBeUndefined()
   expect(await desk.find({ type: 'Svg' })).toBeDefined()
-  expect(await desk.find({ type: 'Text', text: /Subscription/ })).toBeDefined()
+  expect(await desk.find({ type: 'Text', text: /Subscription/ })).toBeUndefined()
   expect(await desk.find({ type: 'Text', text: /agents/ })).toBeDefined()
   await desk.unmount()
 })

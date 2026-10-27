@@ -119,7 +119,6 @@ async function checkToolbox($: Engine): Promise<boolean> {
 
 /** Everything the bar shows, read once per drawing. */
 type Info = {
-  plan: string
   model: string
   effort: string | null
   ctx: number
@@ -139,7 +138,6 @@ async function collect($: Engine): Promise<Info> {
     }))
     .filter(limit => limit.name !== '')
   return {
-    plan: usage.rateLimits.length > 0 ? 'Subscription' : 'API',
     model: modelLabel(model),
     effort: await read($, effortAtom),
     ctx: Math.round(usage.context.percent ?? 0),
@@ -167,7 +165,6 @@ async function drawTerminal($: Engine, e: Site, columns: number, isWorking: bool
   const info = await collect($)
   const parts: Part[] = []
 
-  parts.push({ priority: 6, width: 2 + info.plan.length, node: <Text color="green">◆ {info.plan}</Text> })
   parts.push({
     priority: 1,
     width: 2 + info.model.length,
@@ -258,16 +255,6 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
   )
   const divider = () => <Svg source={DIVIDER_SVG} alt="divider" width={1} height={14} />
 
-  parts.push({
-    priority: 6,
-    width: 2 + info.plan.length,
-    node: (
-      <Text>
-        <Text color="success">● </Text>
-        <Text>{info.plan}</Text>
-      </Text>
-    ),
-  })
   parts.push({
     priority: 1,
     width: 2 + info.model.length,

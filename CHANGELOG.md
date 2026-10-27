@@ -31,6 +31,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.3.3
+- The Subscription/API part is gone, so the rest has room in both the terminal and the desktop app.
+
 ### 0.3.2
 - Desktop app: the Tools button always shows, and the dividers are visible again.
 
