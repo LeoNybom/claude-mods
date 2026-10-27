@@ -31,6 +31,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.3.1
+- Desktop app: slim colored bars and hairline dividers, and plan and agents no longer drop out at normal widths.
+
 ### 0.3.0
 - Its own look in each place: the terminal keeps the ▰▱ meters, colored by your terminal's own theme, and the desktop app gets one rounded frame with thin dividers and slim meters that follow the app's light and dark mode.
 - Parts are spread over the whole width instead of packed together on the left.

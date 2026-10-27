@@ -6,9 +6,29 @@ type Site = RenderInput<'AbovePrompt' | 'PromptHint'>
 
 const STORE_KEY = 'enabled'
 const METER = 10
-const DESKTOP_METER = 6
 const TERMINAL_TOOLS = '◆ Tools ▲'
-const DESKTOP_TOOLS = 'Tools ▴'
+const DESKTOP_TOOLS = 'Tools ⌃'
+/** The desktop meter: 40 px wide, about five cells of the app's text. */
+const METER_PX = 40
+const METER_CELLS = 5
+/** How many of the app's average characters fit in one cell of `bodyColumns`. */
+const DESKTOP_CELL_RATIO = 1.3
+const LEVEL_HEX = { success: '#3fb950', warning: '#d29922', error: '#f85149' } as const
+const TRACK_HEX = 'rgba(128,128,128,0.35)'
+const DIVIDER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="14" viewBox="0 0 1 14"><rect width="1" height="14" fill="rgba(128,128,128,0.45)"/></svg>'
+
+/** A slim rounded bar: the used share in its level color over a faint track. */
+export function meterSvg(percent: number): string {
+  const p = Math.max(0, Math.min(100, percent))
+  const used = p === 0 ? 0 : Math.max(6, Math.round((p / 100) * METER_PX))
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${METER_PX}" height="6" viewBox="0 0 ${METER_PX} 6">` +
+    `<rect width="${METER_PX}" height="6" rx="3" fill="${TRACK_HEX}"/>` +
+    (used > 0 ? `<rect width="${used}" height="6" rx="3" fill="${LEVEL_HEX[levelColor(p)]}"/>` : '') +
+    '</svg>'
+  )
+}
 
 const enabledAtom = atom({ plugin: 'infobar', key: 'enabled' } as const, true)
 const modelAtom = atom({ plugin: 'infobar', key: 'liveModel' } as const, null)
@@ -226,24 +246,28 @@ async function drawTerminal($: Engine, e: Site, columns: number, isWorking: bool
   )
 }
 
-/** The desktop app: every part in one shared rounded frame, with thin dividers between them. */
+/** The desktop app: every part in one shared rounded frame, with hairline dividers between them. */
 async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderChildren> {
-  const { Box, Text, Button } = $.ui.resolve(e)
+  const { Box, Text, Button, Svg } = $.ui.resolve(e as RenderInput<'AbovePrompt'> & { surface: 'desktop' })
   const info = await collect($)
   const parts: Part[] = []
 
-  /** A slim line meter: ━ in the level color for used, faint for free. */
-  const slim = (percent: number) => {
-    const filled = Math.max(0, Math.min(DESKTOP_METER, Math.round((percent / 100) * DESKTOP_METER)))
-    return (
-      <Text>
-        <Text color={levelColor(percent)}>{'━'.repeat(filled)}</Text>
-        <Text color="subtle">{'━'.repeat(DESKTOP_METER - filled)}</Text>
-      </Text>
-    )
-  }
+  // A meter is a small picture, so it cannot read the app's theme: these colors read well on light and dark.
+  const meterBar = (percent: number) => (
+    <Svg source={meterSvg(percent)} alt={`${percent}% used`} width={METER_PX} height={6} />
+  )
+  const divider = () => <Svg source={DIVIDER_SVG} alt="" width={1} height={14} />
 
-  parts.push({ priority: 6, width: 2 + info.plan.length, node: <Text color="success">● {info.plan}</Text> })
+  parts.push({
+    priority: 6,
+    width: 2 + info.plan.length,
+    node: (
+      <Text>
+        <Text color="success">● </Text>
+        <Text>{info.plan}</Text>
+      </Text>
+    ),
+  })
   parts.push({
     priority: 1,
     width: 2 + info.model.length,
@@ -266,37 +290,22 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
       ),
     })
   }
+  const usage = [{ name: 'ctx', percent: info.ctx }, ...info.limits]
   parts.push({
-    priority: 3,
-    width: 4 + DESKTOP_METER + 1 + `${info.ctx}%`.length,
+    priority: 2,
+    width: usage.reduce((sum, u) => sum + u.name.length + 1 + METER_CELLS + 1 + `${u.percent}%`.length, 0) + (usage.length - 1) * 2,
     node: (
-      <Text>
-        <Text dimColor>ctx </Text>
-        {slim(info.ctx)}
-        <Text> {info.ctx}%</Text>
-      </Text>
+      <Box flexDirection="row" alignItems="center" gap={2}>
+        {usage.map(u => (
+          <Box flexDirection="row" alignItems="center" gap={1}>
+            <Text dimColor>{u.name}</Text>
+            {meterBar(u.percent)}
+            <Text>{u.percent}%</Text>
+          </Box>
+        ))}
+      </Box>
     ),
   })
-  if (info.limits.length > 0) {
-    parts.push({
-      priority: 2,
-      width: limitsWidth(info.limits, 3, DESKTOP_METER + 1),
-      node: (
-        <Text>
-          {info.limits.map((l, i) => (
-            <Text>
-              <Text dimColor>
-                {i > 0 ? '   ' : ''}
-                {l.name}{' '}
-              </Text>
-              {slim(l.percent)}
-              <Text> {l.percent}%</Text>
-            </Text>
-          ))}
-        </Text>
-      ),
-    })
-  }
   parts.push({
     priority: 5,
     width: 2 + agentWord(info.agents).length,
@@ -308,12 +317,13 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
     ),
   })
 
-  const room = columns - 4 - (info.showTools ? DESKTOP_TOOLS.length + 7 : 0)
+  // The app's font is narrower than a terminal cell, so a cell count overstates the width.
+  const room = Math.round(columns * DESKTOP_CELL_RATIO) - 4 - (info.showTools ? DESKTOP_TOOLS.length + 4 : 0)
   const kept = fitParts(parts, room, 3)
 
   const row: RenderChildren[] = []
   kept.forEach((part, i) => {
-    if (i > 0) row.push(<Text color="subtle">│</Text>)
+    if (i > 0) row.push(divider())
     row.push(
       <Box flexShrink={0} paddingX={1}>
         {part.node}
@@ -321,7 +331,7 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
     )
   })
   if (info.showTools) {
-    row.push(<Text color="subtle">│</Text>)
+    row.push(divider())
     row.push(
       <Box flexShrink={0} marginLeft={2} paddingX={1}>
         <Button key="open-tools" label={DESKTOP_TOOLS} plain onPress={() => undefined} />
@@ -343,6 +353,7 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
     </Box>
   )
 }
+
 
 export function registerInfobar(on: On): void {
   on('session.start', async ($, e, next) => {

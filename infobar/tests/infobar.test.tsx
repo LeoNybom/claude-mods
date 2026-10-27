@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { fitParts, levelColor, meter, modelLabel } from '../hooks/infobar'
+import { fitParts, levelColor, meter, meterSvg, modelLabel } from '../hooks/infobar'
 
 const HINT = {
   plugin: 'infobar',
@@ -47,6 +47,8 @@ test('small helpers', () => {
   expect(levelColor(10)).toBe('success')
   expect(levelColor(60)).toBe('warning')
   expect(levelColor(90)).toBe('error')
+  expect(meterSvg(50)).toContain('width="20"')
+  expect(meterSvg(0)).not.toContain('#3fb950')
   const parts = [
     { width: 10, priority: 1 },
     { width: 10, priority: 3 },
@@ -85,10 +87,13 @@ test('the terminal uses glyph meters in terminal colors, the desktop one shared 
   expect((await ui.findAll({ type: 'Box' })).some(b => b.props.borderStyle === 'round')).toBe(false)
   await ui.unmount()
 
-  const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  // About as wide as the app's prompt: every part should still fit.
+  const desk = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 100 }, surface: 'desktop' })
   expect((await desk.findAll({ type: 'Box' })).some(b => b.props.borderStyle === 'round')).toBe(true)
   expect(await desk.find({ type: 'Text', text: '▰▰▱▱▱▱▱▱▱▱' })).toBeUndefined()
-  expect(await desk.find({ type: 'Text', text: '━' })).toBeDefined()
+  expect(await desk.find({ type: 'Svg' })).toBeDefined()
+  expect(await desk.find({ type: 'Text', text: /Subscription/ })).toBeDefined()
+  expect(await desk.find({ type: 'Text', text: /agents/ })).toBeDefined()
   await desk.unmount()
 })
 
