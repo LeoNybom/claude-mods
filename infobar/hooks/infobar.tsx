@@ -8,11 +8,11 @@ const STORE_KEY = 'enabled'
 const METER = 10
 const TERMINAL_TOOLS = '◆ Tools ▲'
 const DESKTOP_TOOLS = 'Tools ⌃'
-/** The desktop meter: 40 px wide, about five cells of the app's text. */
-const METER_PX = 40
-const METER_CELLS = 5
+/** The desktop meter: 32 px wide, about four cells of the app's text. */
+const METER_PX = 32
+const METER_CELLS = 4
 /** How many of the app's average characters fit in one cell of `bodyColumns`. */
-const DESKTOP_CELL_RATIO = 1.3
+const DESKTOP_CELL_RATIO = 1.2
 const LEVEL_HEX = { success: '#3fb950', warning: '#d29922', error: '#f85149' } as const
 const TRACK_HEX = 'rgba(128,128,128,0.35)'
 const DIVIDER_SVG =
@@ -256,7 +256,7 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
   const meterBar = (percent: number) => (
     <Svg source={meterSvg(percent)} alt={`${percent}% used`} width={METER_PX} height={6} />
   )
-  const divider = () => <Svg source={DIVIDER_SVG} alt="" width={1} height={14} />
+  const divider = () => <Svg source={DIVIDER_SVG} alt="divider" width={1} height={14} />
 
   parts.push({
     priority: 6,
@@ -330,26 +330,27 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
       </Box>,
     )
   })
-  if (info.showTools) {
-    row.push(divider())
-    row.push(
-      <Box flexShrink={0} marginLeft={2} paddingX={1}>
-        <Button key="open-tools" label={DESKTOP_TOOLS} plain onPress={() => undefined} />
-      </Box>,
-    )
-  }
-
+  // Tools sits outside the part that may shrink, so it always shows; the parts give way first.
   return (
     <Box
       flexDirection="row"
-      justifyContent="space-between"
       alignItems="center"
       width="100%"
       borderStyle="round"
       borderColor="subtle"
       paddingX={1}
     >
-      {row}
+      <Box flexDirection="row" justifyContent="space-between" alignItems="center" flexGrow={1} flexShrink={1} overflow="hidden">
+        {row}
+      </Box>
+      {info.showTools ? (
+        <Box flexDirection="row" alignItems="center" flexShrink={0} marginLeft={2}>
+          {divider()}
+          <Box marginLeft={2} paddingX={1}>
+            <Button key="open-tools" label={DESKTOP_TOOLS} plain onPress={() => undefined} />
+          </Box>
+        </Box>
+      ) : null}
     </Box>
   )
 }

@@ -31,6 +31,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.3.2
+- Desktop app: the Tools button always shows, and the dividers are visible again.
+
 ### 0.3.1
 - Desktop app: slim colored bars and hairline dividers, and plan and agents no longer drop out at normal widths.
 

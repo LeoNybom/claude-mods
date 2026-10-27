@@ -47,7 +47,7 @@ test('small helpers', () => {
   expect(levelColor(10)).toBe('success')
   expect(levelColor(60)).toBe('warning')
   expect(levelColor(90)).toBe('error')
-  expect(meterSvg(50)).toContain('width="20"')
+  expect(meterSvg(50)).toContain('width="16"')
   expect(meterSvg(0)).not.toContain('#3fb950')
   const parts = [
     { width: 10, priority: 1 },
