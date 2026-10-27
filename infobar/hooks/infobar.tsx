@@ -1,11 +1,14 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, On, RenderInput } from 'claude-code'
+import type { EngineInterface, On, RenderChildren, RenderInput } from 'claude-code'
 
 type Engine = EngineInterface
+type Site = RenderInput<'AbovePrompt' | 'PromptHint'>
 
 const STORE_KEY = 'enabled'
 const METER = 10
-const SEPARATOR = ' │ '
+const DESKTOP_METER = 6
+const TERMINAL_TOOLS = '◆ Tools ▲'
+const DESKTOP_TOOLS = 'Tools ▴'
 
 const enabledAtom = atom({ plugin: 'infobar', key: 'enabled' } as const, true)
 const modelAtom = atom({ plugin: 'infobar', key: 'liveModel' } as const, null)
@@ -25,11 +28,18 @@ export function modelLabel(id: string): string {
   return found ? found.label : id
 }
 
-/** Green under 60%, yellow under 85%, red from there. */
+/** Theme colors for the desktop app: green under 60%, yellow under 85%, red from there. */
 export function levelColor(percent: number): 'success' | 'warning' | 'error' {
   if (percent >= 85) return 'error'
   if (percent >= 60) return 'warning'
   return 'success'
+}
+
+/** The same levels as terminal color names, so they come from the terminal's own theme. */
+export function ansiLevel(percent: number): 'green' | 'yellow' | 'red' {
+  if (percent >= 85) return 'red'
+  if (percent >= 60) return 'yellow'
+  return 'green'
 }
 
 /** A 10-cell meter: ▰ for used, ▱ for free. */
@@ -39,12 +49,12 @@ export function meter(percent: number): string {
 }
 
 /** One part of the bar: how wide it is, how important it is, and what it draws. */
-type Part = { width: number; priority: number; node: unknown }
+type Part = { width: number; priority: number; node: RenderChildren }
 
 /** Keeps the most important parts that fit, in their original order. */
-export function fitParts<T extends { width: number; priority: number }>(parts: T[], room: number): T[] {
+export function fitParts<T extends { width: number; priority: number }>(parts: T[], room: number, gap = 2): T[] {
   const kept = [...parts]
-  const total = () => kept.reduce((sum, p) => sum + p.width, 0) + Math.max(0, kept.length - 1) * SEPARATOR.length
+  const total = () => kept.reduce((sum, p) => sum + p.width, 0) + Math.max(0, kept.length - 1) * gap
   while (kept.length > 0 && total() > room) {
     let worst = 0
     kept.forEach((p, i) => {
@@ -87,115 +97,249 @@ async function checkToolbox($: Engine): Promise<boolean> {
   return hasToolbox
 }
 
-/** Draws the bar for a site `columns` cells wide. */
-async function drawBar(
-  $: Engine,
-  e: RenderInput<'AbovePrompt' | 'PromptHint'>,
-  columns: number,
-  isWorking: boolean,
-): Promise<unknown> {
-  const { Box, Text, Button } = $.ui.resolve(e)
-  await read($, tickAtom)
+/** Everything the bar shows, read once per drawing. */
+type Info = {
+  plan: string
+  model: string
+  effort: string | null
+  ctx: number
+  limits: { name: string; percent: number }[]
+  agents: number
+  showTools: boolean
+}
 
+async function collect($: Engine): Promise<Info> {
+  await read($, tickAtom)
   const usage = await $.session.usage()
   const model = (await read($, modelAtom)) ?? (await $.session.model())
-  const effort = await read($, effortAtom)
-  const agents = (await $.agent.list()).filter(a => a.status === 'running' || a.status === 'pending').length
-  const showTools = await checkToolbox($)
-
-  const parts: Part[] = []
-  const plan = usage.rateLimits.length > 0 ? 'Subscription' : 'API'
-  parts.push({ priority: 6, width: 2 + plan.length, node: <Text color="success">◆ {plan}</Text> })
-
-  const modelText = modelLabel(model)
-  parts.push({
-    priority: 1,
-    width: 2 + modelText.length,
-    node: (
-      <Text bold color="suggestion">
-        ◆ {modelText}
-      </Text>
-    ),
-  })
-
-  if (effort !== null) {
-    parts.push({
-      priority: 4,
-      width: 7 + effort.length,
-      node: (
-        <Text>
-          <Text dimColor>effort </Text>
-          <Text color="claude">{effort}</Text>
-        </Text>
-      ),
-    })
-  }
-
-  const ctx = Math.round(usage.context.percent ?? 0)
-  parts.push({
-    priority: 3,
-    width: 4 + METER + 1 + `${ctx}%`.length,
-    node: (
-      <Text>
-        <Text dimColor>ctx </Text>
-        <Text color={levelColor(ctx)}>{meter(ctx)}</Text>
-        <Text color={levelColor(ctx)}> {ctx}%</Text>
-      </Text>
-    ),
-  })
-
   const limits = usage.rateLimits
     .map(limit => ({
       name: limit.kind === 'five_hour' ? '5h' : limit.kind === 'seven_day' ? '7d' : '',
       percent: Math.round(limit.percentUsed),
     }))
     .filter(limit => limit.name !== '')
-  if (limits.length > 0) {
+  return {
+    plan: usage.rateLimits.length > 0 ? 'Subscription' : 'API',
+    model: modelLabel(model),
+    effort: await read($, effortAtom),
+    ctx: Math.round(usage.context.percent ?? 0),
+    limits,
+    agents: (await $.agent.list()).filter(a => a.status === 'running' || a.status === 'pending').length,
+    showTools: await checkToolbox($),
+  }
+}
+
+function agentWord(n: number): string {
+  return `${n} ${n === 1 ? 'agent' : 'agents'}`
+}
+
+/** Width of "5h 12%  7d 54%", plus any meters drawn beside each. */
+function limitsWidth(limits: Info['limits'], gap: number, meterWidth = 0): number {
+  return (
+    limits.reduce((sum, l) => sum + l.name.length + 1 + meterWidth + `${l.percent}%`.length, 0) +
+    Math.max(0, limits.length - 1) * gap
+  )
+}
+
+/** The terminal: glyph meters in the terminal's own theme colors, spread over the whole line. */
+async function drawTerminal($: Engine, e: Site, columns: number, isWorking: boolean): Promise<RenderChildren> {
+  const { Box, Text, Button } = $.ui.resolve(e)
+  const info = await collect($)
+  const parts: Part[] = []
+
+  parts.push({ priority: 6, width: 2 + info.plan.length, node: <Text color="green">◆ {info.plan}</Text> })
+  parts.push({
+    priority: 1,
+    width: 2 + info.model.length,
+    node: (
+      <Text bold color="blue">
+        ◆ {info.model}
+      </Text>
+    ),
+  })
+  if (info.effort !== null) {
     parts.push({
-      priority: 2,
-      width: limits.reduce((sum, l) => sum + l.name.length + 1 + `${l.percent}%`.length, 0) + (limits.length - 1) * 3,
+      priority: 4,
+      width: 7 + info.effort.length,
       node: (
         <Text>
-          {limits.map((l, i) => (
+          <Text dimColor>effort </Text>
+          <Text color="cyan">{info.effort}</Text>
+        </Text>
+      ),
+    })
+  }
+  parts.push({
+    priority: 3,
+    width: 4 + METER + 1 + `${info.ctx}%`.length,
+    node: (
+      <Text>
+        <Text dimColor>ctx </Text>
+        <Text color={ansiLevel(info.ctx)}>{meter(info.ctx)}</Text>
+        <Text color={ansiLevel(info.ctx)}> {info.ctx}%</Text>
+      </Text>
+    ),
+  })
+  if (info.limits.length > 0) {
+    parts.push({
+      priority: 2,
+      width: limitsWidth(info.limits, 2),
+      node: (
+        <Text>
+          {info.limits.map((l, i) => (
             <Text>
               <Text dimColor>
-                {i > 0 ? ' · ' : ''}
+                {i > 0 ? '  ' : ''}
                 {l.name}{' '}
               </Text>
-              <Text color={levelColor(l.percent)}>{l.percent}%</Text>
+              <Text color={ansiLevel(l.percent)}>{l.percent}%</Text>
             </Text>
           ))}
         </Text>
       ),
     })
   }
-
-  const agentText = `◇ ${agents} ${agents === 1 ? 'agent' : 'agents'}`
+  const agentText = `◇ ${agentWord(info.agents)}`
   parts.push({ priority: 5, width: agentText.length, node: <Text dimColor>{agentText}</Text> })
 
   // The desktop app has its own stop button, so the hint is for the terminal only.
-  const prefix = isWorking && e.surface === 'terminal' ? 'esc to interrupt · ' : ''
-  const toolsLabel = '◆ Tools ▲'
-  const room = columns - 2 - prefix.length - (showTools ? toolsLabel.length + 4 : 0)
-  const kept = fitParts(parts, room)
-
-  const left: unknown[] = []
-  if (prefix !== '') left.push(<Text dimColor>{prefix}</Text>)
-  kept.forEach((part, i) => {
-    if (i > 0) left.push(<Text dimColor>{SEPARATOR}</Text>)
-    left.push(part.node)
-  })
+  const prefix = isWorking ? 'esc to interrupt · ' : ''
+  const room = columns - 2 - prefix.length - (info.showTools ? TERMINAL_TOOLS.length + 5 : 0)
+  const kept = fitParts(parts, room, 2)
 
   return (
     <Box flexDirection="row" justifyContent="space-between" alignItems="center" width="100%">
-      <Box flexDirection="row" flexShrink={1} overflow="hidden">
-        {left}
-      </Box>
-      {showTools ? (
+      {prefix !== '' ? <Text dimColor>{prefix}</Text> : null}
+      {kept.map(part => (
+        <Box flexShrink={0} marginRight={2}>
+          {part.node}
+        </Box>
+      ))}
+      {info.showTools ? (
         <Box marginLeft={3} flexShrink={0}>
-          <Button key="open-tools" label={toolsLabel} plain onPress={() => undefined} />
+          <Button key="open-tools" plain onPress={() => undefined}>
+            <Text color="magenta">{TERMINAL_TOOLS}</Text>
+          </Button>
         </Box>
       ) : null}
+    </Box>
+  )
+}
+
+/** The desktop app: every part in one shared rounded frame, with thin dividers between them. */
+async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderChildren> {
+  const { Box, Text, Button } = $.ui.resolve(e)
+  const info = await collect($)
+  const parts: Part[] = []
+
+  /** A slim line meter: ━ in the level color for used, faint for free. */
+  const slim = (percent: number) => {
+    const filled = Math.max(0, Math.min(DESKTOP_METER, Math.round((percent / 100) * DESKTOP_METER)))
+    return (
+      <Text>
+        <Text color={levelColor(percent)}>{'━'.repeat(filled)}</Text>
+        <Text color="subtle">{'━'.repeat(DESKTOP_METER - filled)}</Text>
+      </Text>
+    )
+  }
+
+  parts.push({ priority: 6, width: 2 + info.plan.length, node: <Text color="success">● {info.plan}</Text> })
+  parts.push({
+    priority: 1,
+    width: 2 + info.model.length,
+    node: (
+      <Text weight="medium">
+        <Text color="suggestion">✦ </Text>
+        {info.model}
+      </Text>
+    ),
+  })
+  if (info.effort !== null) {
+    parts.push({
+      priority: 4,
+      width: 7 + info.effort.length,
+      node: (
+        <Text>
+          <Text dimColor>effort </Text>
+          <Text>{info.effort}</Text>
+        </Text>
+      ),
+    })
+  }
+  parts.push({
+    priority: 3,
+    width: 4 + DESKTOP_METER + 1 + `${info.ctx}%`.length,
+    node: (
+      <Text>
+        <Text dimColor>ctx </Text>
+        {slim(info.ctx)}
+        <Text> {info.ctx}%</Text>
+      </Text>
+    ),
+  })
+  if (info.limits.length > 0) {
+    parts.push({
+      priority: 2,
+      width: limitsWidth(info.limits, 3, DESKTOP_METER + 1),
+      node: (
+        <Text>
+          {info.limits.map((l, i) => (
+            <Text>
+              <Text dimColor>
+                {i > 0 ? '   ' : ''}
+                {l.name}{' '}
+              </Text>
+              {slim(l.percent)}
+              <Text> {l.percent}%</Text>
+            </Text>
+          ))}
+        </Text>
+      ),
+    })
+  }
+  parts.push({
+    priority: 5,
+    width: 2 + agentWord(info.agents).length,
+    node: (
+      <Text>
+        <Text color={info.agents > 0 ? 'success' : 'subtle'}>● </Text>
+        <Text>{agentWord(info.agents)}</Text>
+      </Text>
+    ),
+  })
+
+  const room = columns - 4 - (info.showTools ? DESKTOP_TOOLS.length + 7 : 0)
+  const kept = fitParts(parts, room, 3)
+
+  const row: RenderChildren[] = []
+  kept.forEach((part, i) => {
+    if (i > 0) row.push(<Text color="subtle">│</Text>)
+    row.push(
+      <Box flexShrink={0} paddingX={1}>
+        {part.node}
+      </Box>,
+    )
+  })
+  if (info.showTools) {
+    row.push(<Text color="subtle">│</Text>)
+    row.push(
+      <Box flexShrink={0} marginLeft={2} paddingX={1}>
+        <Button key="open-tools" label={DESKTOP_TOOLS} plain onPress={() => undefined} />
+      </Box>,
+    )
+  }
+
+  return (
+    <Box
+      flexDirection="row"
+      justifyContent="space-between"
+      alignItems="center"
+      width="100%"
+      borderStyle="round"
+      borderColor="subtle"
+      paddingX={1}
+    >
+      {row}
     </Box>
   )
 }
@@ -271,15 +415,15 @@ export function registerInfobar(on: On): void {
   // --- In the terminal: the line under the prompt ---
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     if (e.surface !== 'terminal' || !(await read($, enabledAtom))) return next(e)
-    return (await drawBar($, e, e.viewport?.columns ?? 100, e.props.isWorking)) as never
+    return (await drawTerminal($, e, e.viewport?.columns ?? 100, e.props.isWorking)) as never
   })
 
-  // --- In the desktop app: the last line of the band right above the prompt ---
+  // --- In the desktop app: a framed row at the bottom of the band right above the prompt ---
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const rest = await next(e)
     if (e.surface === 'terminal' || e.props.hasSurvey || !(await read($, enabledAtom))) return rest
     const { Box } = $.ui.resolve(e)
-    const bar = await drawBar($, e, e.props.bodyColumns, e.props.isWorking)
+    const bar = await drawDesktop($, e, e.props.bodyColumns)
     return (
       <Box flexDirection="column">
         {rest ?? null}

@@ -31,6 +31,11 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.3.0
+- Its own look in each place: the terminal keeps the ▰▱ meters, colored by your terminal's own theme, and the desktop app gets one rounded frame with thin dividers and slim meters that follow the app's light and dark mode.
+- Parts are spread over the whole width instead of packed together on the left.
+- More room before the Tools button.
+
 ### 0.2.0
 - Shows in the desktop app, right above the prompt.
 - Session (5h) and weekly (7d) usage stay visible on narrower screens.

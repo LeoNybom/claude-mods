@@ -1,6 +1,6 @@
 {
   "name": "infobar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Infobar: one line under the prompt with your plan, model, effort, how full the chat is, usage limits and running agents.",
   "types": "./types/index.d.ts"
 }

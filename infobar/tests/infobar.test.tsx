@@ -69,12 +69,27 @@ test('the bar shows plan, model, effort, context, limits, agents and the Tools b
     expect(await ui.find({ type: 'Text', text: /Subscription/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'medium' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: '▰▰▱▱▱▱▱▱▱▱' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: '54%' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /54%/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /0 agents/ })).toBeDefined()
     expect(await ui.find({ type: 'Button', key: 'open-tools' })).toBeDefined()
     await ui.unmount()
   }
+})
+
+test('the terminal uses glyph meters in terminal colors, the desktop one shared rounded frame', async ($, on) => {
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  let ui = await $.ui.mount({ ...HINT, surface: 'terminal', viewport: { columns: 160, rows: 40 } })
+  const texts = await ui.findAll({ type: 'Text' })
+  expect(texts.some(t => t.text.includes('▰▰▱') && t.props.color === 'green')).toBe(true)
+  expect((await ui.findAll({ type: 'Box' })).some(b => b.props.borderStyle === 'round')).toBe(false)
+  await ui.unmount()
+
+  const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect((await desk.findAll({ type: 'Box' })).some(b => b.props.borderStyle === 'round')).toBe(true)
+  expect(await desk.find({ type: 'Text', text: '▰▰▱▱▱▱▱▱▱▱' })).toBeUndefined()
+  expect(await desk.find({ type: 'Text', text: '━' })).toBeDefined()
+  await desk.unmount()
 })
 
 test('a narrow window drops the least important parts first', async ($, on) => {
@@ -106,7 +121,7 @@ test('the desktop draws the bar under the rest of the band, the terminal leaves 
   expect(await ui.find({ type: 'Text', text: /engine hint/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Opus 5.5/ })).toBeDefined()
   await ui.unmount()
-  ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /Opus 5.5/ })).toBeUndefined()
-  await ui.unmount()
+  const term = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await term.find({ type: 'Text', text: /Opus 5.5/ })).toBeUndefined()
+  await term.unmount()
 })
