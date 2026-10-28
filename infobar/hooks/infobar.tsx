@@ -5,6 +5,8 @@ type Engine = EngineInterface
 type Site = RenderInput<'AbovePrompt' | 'PromptHint'>
 
 const STORE_KEY = 'enabled'
+const LIMITS_KEY = 'lastLimits'
+const EFFORT_KEY = 'lastEffort'
 const METER = 10
 const TERMINAL_TOOLS = '◆ Tools ▲'
 const DESKTOP_TOOLS = 'Tools ⌃'
@@ -88,6 +90,8 @@ export function fitParts<T extends { width: number; priority: number }>(parts: T
 // Module variables reset on a reload; what is drawn lives in $.state.
 let ticker: { cancel: () => void } | undefined
 let hasToolbox = false
+let savedLimits: SavedLimit[] = []
+let savedEffort: string | null = null
 
 async function setEnabled($: Engine, value: boolean): Promise<void> {
   await update($, enabledAtom, () => value)
@@ -127,21 +131,73 @@ type Info = {
   showTools: boolean
 }
 
+/** A usage window as saved between sessions. */
+type SavedLimit = { kind: string; percentUsed: number; resetsAt?: string }
+
+/**
+ * The 5h and 7d windows to show. A window whose reset time has passed shows 0%,
+ * since a saved reading from before the reset no longer holds.
+ */
+export function limitsFrom(raw: SavedLimit[], now: number): Info['limits'] {
+  return raw
+    .map(limit => {
+      const reset = limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt)
+      return {
+        name: limit.kind === 'five_hour' ? '5h' : limit.kind === 'seven_day' ? '7d' : '',
+        percent: !Number.isNaN(reset) && reset <= now ? 0 : Math.round(limit.percentUsed),
+      }
+    })
+    .filter(limit => limit.name !== '')
+}
+
+function isSavedLimits(value: unknown): value is SavedLimit[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      v =>
+        typeof v === 'object' &&
+        v !== null &&
+        typeof (v as SavedLimit).kind === 'string' &&
+        typeof (v as SavedLimit).percentUsed === 'number',
+    )
+  )
+}
+
+/**
+ * Effort and the 5h/7d windows arrive only with the first reply of a session.
+ * Until then the bar shows the last ones seen, kept in $.store; no request is made for them.
+ */
+async function loadSaved($: Engine): Promise<void> {
+  const limits = await $.store.get(LIMITS_KEY)
+  savedLimits = isSavedLimits(limits) ? limits : []
+  const effort = await $.store.get(EFFORT_KEY)
+  savedEffort = typeof effort === 'string' ? effort : null
+}
+
+async function saveLimits($: Engine, limits: SavedLimit[]): Promise<void> {
+  const plain = limits.map(l => (l.resetsAt === undefined ? { kind: l.kind, percentUsed: l.percentUsed } : { kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt }))
+  if (JSON.stringify(plain) === JSON.stringify(savedLimits)) return
+  savedLimits = plain
+  await $.store.set(LIMITS_KEY, plain)
+}
+
+async function saveEffort($: Engine, effort: string): Promise<void> {
+  if (effort === savedEffort) return
+  savedEffort = effort
+  await $.store.set(EFFORT_KEY, effort)
+}
+
 async function collect($: Engine): Promise<Info> {
   await read($, tickAtom)
   const usage = await $.session.usage()
   const model = (await read($, modelAtom)) ?? (await $.session.model())
-  const limits = usage.rateLimits
-    .map(limit => ({
-      name: limit.kind === 'five_hour' ? '5h' : limit.kind === 'seven_day' ? '7d' : '',
-      percent: Math.round(limit.percentUsed),
-    }))
-    .filter(limit => limit.name !== '')
+  if (usage.rateLimits.length > 0) await saveLimits($, usage.rateLimits)
+  const live = usage.rateLimits.length > 0 ? usage.rateLimits : savedLimits
   return {
     model: modelLabel(model),
-    effort: await read($, effortAtom),
+    effort: (await read($, effortAtom)) ?? savedEffort,
     ctx: Math.round(usage.context.percent ?? 0),
-    limits,
+    limits: limitsFrom(live, Date.now()),
     agents: (await $.agent.list()).filter(a => a.status === 'running' || a.status === 'pending').length,
     showTools: await checkToolbox($),
   }
@@ -353,6 +409,7 @@ export function registerInfobar(on: On): void {
     // Always written, so the Tools box knows the Infobar is installed.
     const saved = await $.store.get(STORE_KEY)
     await update($, enabledAtom, () => (typeof saved === 'boolean' ? saved : true))
+    await loadSaved($)
     return next(e)
   })
 
@@ -375,7 +432,10 @@ export function registerInfobar(on: On): void {
       const model = e.model
       const effort = typeof e.effort === 'string' ? e.effort : null
       await update($, modelAtom, () => model)
-      if (effort !== null) await update($, effortAtom, () => effort)
+      if (effort !== null) {
+        await update($, effortAtom, () => effort)
+        await saveEffort($, effort)
+      }
     }
     return yield* next(e)
   })
@@ -395,7 +455,10 @@ export function registerInfobar(on: On): void {
   on('command.run', { command: 'effort' }, async ($, e, next) => {
     const result = await next(e)
     const level = e.args.trim().toLowerCase()
-    if (level !== '') await update($, effortAtom, () => level)
+    if (level !== '') {
+      await update($, effortAtom, () => level)
+      await saveEffort($, level)
+    }
     return result
   })
 

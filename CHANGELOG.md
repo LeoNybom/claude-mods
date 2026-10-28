@@ -31,6 +31,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.3.4
+- Effort, 5h and 7d show from the moment a chat opens: until the first reply, the bar shows the last values it saw (a window whose reset time has passed shows 0%).
+
 ### 0.3.3
 - The Subscription/API part is gone, so the rest has room in both the terminal and the desktop app.
 

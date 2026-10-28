@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { fitParts, levelColor, meter, meterSvg, modelLabel } from '../hooks/infobar'
+import { fitParts, levelColor, limitsFrom, meter, meterSvg, modelLabel } from '../hooks/infobar'
 
 const HINT = {
   plugin: 'infobar',
@@ -24,13 +24,13 @@ const USAGE = {
   ],
 }
 
-function engine(on: On, commands: string[] = ['toolbox']) {
-  mock.store(on)
+function engine(on: On, commands: string[] = ['toolbox'], usage: unknown = USAGE, stored: Record<string, unknown> = {}) {
+  mock.store(on, stored)
   mock.clock(on)
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('command.list', () => ({ value: commands.map(name => ({ name, description: '', source: 'plugin' })) }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('session.usage', () => ({ value: USAGE }))
+  on('session.usage', () => ({ value: usage as typeof USAGE }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('agent.list', () => ({ value: [] }))
   on('command.run', () => ({ text: '' }))
@@ -55,6 +55,41 @@ test('small helpers', () => {
     { width: 10, priority: 2 },
   ]
   expect(fitParts(parts, 23).map(p => p.priority)).toEqual([1, 2])
+
+  const now = Date.parse('2026-10-28T12:00:00Z')
+  expect(
+    limitsFrom(
+      [
+        { kind: 'five_hour', percentUsed: 40, resetsAt: '2026-10-28T11:00:00Z' },
+        { kind: 'seven_day', percentUsed: 22.4, resetsAt: '2026-10-30T00:00:00Z' },
+      ],
+      now,
+    ),
+  ).toEqual([
+    { name: '5h', percent: 0 },
+    { name: '7d', percent: 22 },
+  ])
+})
+
+test('before the first reply, effort, 5h and 7d show the last values seen', async ($, on) => {
+  engine(on, ['toolbox'], { ...USAGE, rateLimits: [] }, {
+    lastEffort: 'high',
+    lastLimits: [
+      { kind: 'five_hour', percentUsed: 31 },
+      { kind: 'seven_day', percentUsed: 47 },
+    ],
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const site of [
+    { ...HINT, surface: 'terminal' as const, viewport: { columns: 160, rows: 40 } },
+    { ...BAND, surface: 'desktop' as const },
+  ]) {
+    const ui = await $.ui.mount(site as never)
+    expect(await ui.find({ type: 'Text', text: 'high' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /31%/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /47%/ })).toBeDefined()
+    await ui.unmount()
+  }
 })
 
 test('the bar shows model, effort, context, limits, agents and the Tools button', async ($, on) => {
