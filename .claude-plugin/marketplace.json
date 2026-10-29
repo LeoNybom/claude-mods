@@ -16,7 +16,7 @@
     {
       "name": "infobar",
       "source": "./infobar",
-      "description": "Infobar: one line under the prompt with your model, effort, how full the chat is, usage limits and running agents."
+      "description": "Infobar: one line under the prompt with your model, effort, git branch, how full the chat is, usage limits and running agents."
     },
     {
       "name": "prompt-upgrade",

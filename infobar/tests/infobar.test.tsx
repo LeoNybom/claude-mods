@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { fitParts, levelColor, limitsFrom, meter, meterSvg, modelLabel } from '../hooks/infobar'
+import { fitParts, levelColor, limitsFrom, meter, meterSvg, modelLabel, parseGitStatus } from '../hooks/infobar'
 
 const HINT = {
   plugin: 'infobar',
@@ -24,7 +24,13 @@ const USAGE = {
   ],
 }
 
-function engine(on: On, commands: string[] = ['toolbox'], usage: unknown = USAGE, stored: Record<string, unknown> = {}) {
+/** `git status --porcelain=v1 -b` output, or null for a folder that is not a repository. */
+const DIRTY = '## feature/git...origin/feature/git\n M infobar/hooks/infobar.tsx\n'
+const CLEAN = '## main...origin/main\n'
+
+type Setup = { commands?: string[]; usage?: unknown; stored?: Record<string, unknown>; git?: string | null }
+
+function engine(on: On, { commands = ['toolbox'], usage = USAGE, stored = {}, git = null }: Setup = {}) {
   mock.store(on, stored)
   mock.clock(on)
   on('command.register', (_, e) => ({ value: { command: e.name } }))
@@ -33,6 +39,12 @@ function engine(on: On, commands: string[] = ['toolbox'], usage: unknown = USAGE
   on('session.usage', () => ({ value: usage as typeof USAGE }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('agent.list', () => ({ value: [] }))
+  on('process.run', () => ({
+    value:
+      git === null
+        ? { exitCode: 128, stdout: '', stderr: 'not a git repository', isStdoutTruncated: false, isStderrTruncated: false }
+        : { exitCode: 0, stdout: git, stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
+  }))
   on('command.run', () => ({ text: '' }))
   on('ui.toast', () => ({ value: undefined }))
   on('ui.render', ($, e) => {
@@ -40,6 +52,9 @@ function engine(on: On, commands: string[] = ['toolbox'], usage: unknown = USAGE
     return <Text>engine hint</Text>
   })
 }
+
+const TERMINAL = { ...HINT, surface: 'terminal' as const, viewport: { columns: 160, rows: 40 } }
+const DESKTOP = { ...BAND, surface: 'desktop' as const }
 
 test('small helpers', () => {
   expect(modelLabel('claude-sonnet-5-5')).toBe('Sonnet 5.5')
@@ -71,41 +86,57 @@ test('small helpers', () => {
   ])
 })
 
+test('git status: up to date only when committed and pushed', () => {
+  expect(parseGitStatus(CLEAN)).toEqual({ branch: 'main', upToDate: true })
+  expect(parseGitStatus(DIRTY)).toEqual({ branch: 'feature/git', upToDate: false })
+  expect(parseGitStatus('## main...origin/main [ahead 1]\n')).toEqual({ branch: 'main', upToDate: false })
+  expect(parseGitStatus('## main...origin/main [behind 2]\n')).toEqual({ branch: 'main', upToDate: true })
+  expect(parseGitStatus('## new-branch\n')).toEqual({ branch: 'new-branch', upToDate: false })
+  expect(parseGitStatus('## No commits yet on main\n')).toEqual({ branch: 'main', upToDate: false })
+  expect(parseGitStatus('')).toBeNull()
+})
+
 test('before the first reply, effort, 5h and 7d show the last values seen', async ($, on) => {
-  engine(on, ['toolbox'], { ...USAGE, rateLimits: [] }, {
-    lastEffort: 'high',
-    lastLimits: [
-      { kind: 'five_hour', percentUsed: 31 },
-      { kind: 'seven_day', percentUsed: 47 },
-    ],
+  engine(on, {
+    usage: { ...USAGE, rateLimits: [] },
+    stored: {
+      lastEffort: 'high',
+      lastLimits: [
+        { kind: 'five_hour', percentUsed: 31 },
+        { kind: 'seven_day', percentUsed: 47 },
+      ],
+    },
   })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  for (const site of [
-    { ...HINT, surface: 'terminal' as const, viewport: { columns: 160, rows: 40 } },
-    { ...BAND, surface: 'desktop' as const },
-  ]) {
+  for (const site of [TERMINAL, DESKTOP]) {
     const ui = await $.ui.mount(site as never)
-    expect(await ui.find({ type: 'Text', text: 'high' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /31%/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /47%/ })).toBeDefined()
     await ui.unmount()
   }
+  const ui = await $.ui.mount(TERMINAL)
+  expect(await ui.find({ type: 'Text', text: 'high' })).toBeDefined()
+  await ui.unmount()
 })
 
-test('the bar shows model, effort, context, limits, agents and the Tools button', async ($, on) => {
+test('the terminal keeps model and effort; the desktop leaves them to its own corner', async ($, on) => {
   engine(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await $.command.run({ command: 'effort', args: 'medium', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 140 } })
 
-  const sites = [
-    { ...HINT, surface: 'terminal' as const, viewport: { columns: 160, rows: 40 } },
-    { ...BAND, surface: 'desktop' as const },
-  ]
-  for (const site of sites) {
+  const term = await $.ui.mount(TERMINAL)
+  expect(await term.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
+  expect(await term.find({ type: 'Text', text: 'medium' })).toBeDefined()
+  await term.unmount()
+
+  const desk = await $.ui.mount(DESKTOP)
+  expect(await desk.find({ type: 'Text', text: /Opus 5\.5/ })).toBeUndefined()
+  expect(await desk.find({ type: 'Text', text: 'medium' })).toBeUndefined()
+  await desk.unmount()
+
+  for (const site of [TERMINAL, DESKTOP]) {
     const ui = await $.ui.mount(site as never)
     expect(await ui.find({ type: 'Text', text: /Subscription/ })).toBeUndefined()
-    expect(await ui.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: 'medium' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /54%/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /0 agents/ })).toBeDefined()
     expect(await ui.find({ type: 'Button', key: 'open-tools' })).toBeDefined()
@@ -113,10 +144,46 @@ test('the bar shows model, effort, context, limits, agents and the Tools button'
   }
 })
 
-test('the terminal uses glyph meters in terminal colors, the desktop one shared rounded frame', async ($, on) => {
+test('the git part shows the branch, yellow with changes and green when up to date', async ($, on) => {
+  engine(on, { git: DIRTY })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const term = await $.ui.mount(TERMINAL)
+  expect(await term.find({ type: 'Text', text: /feature\/git/ })).toBeDefined()
+  expect((await term.findAll({ type: 'Text' })).some(t => t.text === '●' && t.props.color === 'yellow')).toBe(true)
+  await term.unmount()
+
+  const desk = await $.ui.mount(DESKTOP)
+  expect(await desk.find({ type: 'Text', text: /feature\/git/ })).toBeDefined()
+  expect((await desk.findAll({ type: 'Text' })).some(t => t.text === '●' && t.props.color === 'warning')).toBe(true)
+  await desk.unmount()
+})
+
+test('a clean, pushed branch has a green dot', async ($, on) => {
+  engine(on, { git: CLEAN })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const term = await $.ui.mount(TERMINAL)
+  expect((await term.findAll({ type: 'Text' })).some(t => t.text === '●' && t.props.color === 'green')).toBe(true)
+  await term.unmount()
+  const desk = await $.ui.mount(DESKTOP)
+  expect((await desk.findAll({ type: 'Text' })).some(t => t.text === '●' && t.props.color === 'success')).toBe(true)
+  await desk.unmount()
+})
+
+test('outside a git repository the git part is hidden', async ($, on) => {
   engine(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  let ui = await $.ui.mount({ ...HINT, surface: 'terminal', viewport: { columns: 160, rows: 40 } })
+  for (const site of [TERMINAL, DESKTOP]) {
+    const ui = await $.ui.mount(site as never)
+    expect(await ui.find({ type: 'Text', text: /⎇/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Svg', text: /branch/ })).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
+test('the terminal uses glyph meters in terminal colors, the desktop one shared rounded frame', async ($, on) => {
+  engine(on, { git: DIRTY })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount(TERMINAL)
   const texts = await ui.findAll({ type: 'Text' })
   expect(texts.some(t => t.text.includes('▰▰▱') && t.props.color === 'green')).toBe(true)
   expect((await ui.findAll({ type: 'Box' })).some(b => b.props.borderStyle === 'round')).toBe(false)
@@ -127,13 +194,13 @@ test('the terminal uses glyph meters in terminal colors, the desktop one shared 
   expect((await desk.findAll({ type: 'Box' })).some(b => b.props.borderStyle === 'round')).toBe(true)
   expect(await desk.find({ type: 'Text', text: '▰▰▱▱▱▱▱▱▱▱' })).toBeUndefined()
   expect(await desk.find({ type: 'Svg' })).toBeDefined()
-  expect(await desk.find({ type: 'Text', text: /Subscription/ })).toBeUndefined()
+  expect(await desk.find({ type: 'Text', text: /feature\/git/ })).toBeDefined()
   expect(await desk.find({ type: 'Text', text: /agents/ })).toBeDefined()
   await desk.unmount()
 })
 
 test('a narrow window drops the least important parts first', async ($, on) => {
-  engine(on)
+  engine(on, { git: DIRTY })
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   const ui = await $.ui.mount({ ...HINT, surface: 'terminal', viewport: { columns: 50, rows: 40 } })
   expect(await ui.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
@@ -141,12 +208,11 @@ test('a narrow window drops the least important parts first', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: '12%' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: '54%' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /agents/ })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /Subscription/ })).toBeUndefined()
   await ui.unmount()
 })
 
 test('/infobar off gives the normal hint back', async ($, on) => {
-  engine(on, [])
+  engine(on, { commands: [] })
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   await $.command.run({ command: 'infobar', args: 'off', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
   const ui = await $.ui.mount({ ...HINT, surface: 'terminal' })
@@ -157,11 +223,11 @@ test('/infobar off gives the normal hint back', async ($, on) => {
 test('the desktop draws the bar under the rest of the band, the terminal leaves the band alone', async ($, on) => {
   engine(on)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  let ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const ui = await $.ui.mount(DESKTOP)
   expect(await ui.find({ type: 'Text', text: /engine hint/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Opus 5.5/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /agents/ })).toBeDefined()
   await ui.unmount()
   const term = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await term.find({ type: 'Text', text: /Opus 5.5/ })).toBeUndefined()
+  expect(await term.find({ type: 'Text', text: /agents/ })).toBeUndefined()
   await term.unmount()
 })

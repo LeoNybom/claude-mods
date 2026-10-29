@@ -9,7 +9,7 @@ const LIMITS_KEY = 'lastLimits'
 const EFFORT_KEY = 'lastEffort'
 const METER = 10
 const TERMINAL_TOOLS = '◆ Tools ▲'
-const DESKTOP_TOOLS = 'Tools ⌃'
+const DESKTOP_TOOLS = 'Tools'
 /** The desktop meter: 32 px wide, about four cells of the app's text. */
 const METER_PX = 32
 const METER_CELLS = 4
@@ -17,8 +17,16 @@ const METER_CELLS = 4
 const DESKTOP_CELL_RATIO = 1.2
 const LEVEL_HEX = { success: '#3fb950', warning: '#d29922', error: '#f85149' } as const
 const TRACK_HEX = 'rgba(128,128,128,0.35)'
+/** Dividers run the whole height of the row. */
+const DIVIDER_PX = 22
 const DIVIDER_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="14" viewBox="0 0 1 14"><rect width="1" height="14" fill="rgba(128,128,128,0.45)"/></svg>'
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="22" viewBox="0 0 1 22" preserveAspectRatio="none"><rect width="1" height="22" fill="rgba(128,128,128,0.45)"/></svg>'
+/** A thin upward chevron, like the draft's. */
+const CHEVRON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M1 5 L5 1 L9 5" fill="none" stroke="rgba(150,150,150,1)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+/** A git branch mark: two dots joined by a line. */
+const BRANCH_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(150,150,150,1)" stroke-width="1.2" stroke-linecap="round"><circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="4" r="1.5"/><path d="M3 4v4M9 5.5c0 2-6 1-6 2.5"/></svg>'
 
 /** A slim rounded bar: the used share in its level color over a faint track. */
 export function meterSvg(percent: number): string {
@@ -129,6 +137,7 @@ type Info = {
   limits: { name: string; percent: number }[]
   agents: number
   showTools: boolean
+  git: GitInfo
 }
 
 /** A usage window as saved between sessions. */
@@ -200,6 +209,7 @@ async function collect($: Engine): Promise<Info> {
     limits: limitsFrom(live, Date.now()),
     agents: (await $.agent.list()).filter(a => a.status === 'running' || a.status === 'pending').length,
     showTools: await checkToolbox($),
+    git,
   }
 }
 
@@ -215,13 +225,75 @@ function limitsWidth(limits: Info['limits'], gap: number, meterWidth = 0): numbe
   )
 }
 
-/** The terminal: glyph meters in the terminal's own theme colors, spread over the whole line. */
+// --- Git: the branch and whether everything is committed and pushed ---
+
+/** The branch, and whether all is committed and pushed; null outside a git repository. */
+export type GitInfo = { branch: string; upToDate: boolean } | null
+
+/**
+ * Reads `git status --porcelain=v1 -b`. Up to date means no changes, an upstream,
+ * and no commits ahead of it: committed and pushed.
+ */
+export function parseGitStatus(out: string): GitInfo {
+  const lines = out.split('\n').filter(l => l.trim() !== '')
+  const head = lines[0]
+  if (head === undefined || !head.startsWith('## ')) return null
+  const text = head.slice(3)
+  let branch: string
+  let hasUpstream = false
+  if (text.startsWith('No commits yet on ')) branch = text.slice('No commits yet on '.length).trim()
+  else if (text.startsWith('HEAD (no branch)')) branch = 'HEAD'
+  else {
+    const name = text.split(' [')[0]!
+    const dots = name.indexOf('...')
+    hasUpstream = dots >= 0
+    branch = dots >= 0 ? name.slice(0, dots) : name.trim()
+  }
+  const isAhead = /\[[^\]]*ahead \d+/.test(text)
+  return { branch, upToDate: lines.length === 1 && hasUpstream && !isAhead }
+}
+
+const GIT_EVERY_MS = 10_000
+let git: GitInfo = null
+let gitTimer: { cancel: () => void } | undefined
+let gitBusy = false
+
+/** Runs git on this machine only (no request to Claude), and redraws when the answer changed. */
+async function refreshGit($: Engine): Promise<void> {
+  if (gitBusy) return
+  gitBusy = true
+  try {
+    const result = await $.process.run(['git', 'status', '--porcelain=v1', '-b'], { timeoutMs: 5000 })
+    const next = result.exitCode === 0 ? parseGitStatus(result.stdout) : null
+    if (JSON.stringify(next) !== JSON.stringify(git)) {
+      git = next
+      await update($, tickAtom, n => (n ?? 0) + 1)
+    }
+  } catch {
+    // No git on this machine, or it did not answer: the part stays hidden.
+  } finally {
+    gitBusy = false
+  }
+}
+
+function startGitWatch($: Engine): void {
+  void refreshGit($)
+  if (gitTimer === undefined) gitTimer = $.clock.every(GIT_EVERY_MS, () => void refreshGit($))
+}
+
+// --- Drawing ---
+
+/** Width of the git part at its smallest: icon, a few letters, the dot. */
+const GIT_MIN_WIDTH = 8
+
+/** The terminal: model and effort anchored left, git in the gap, usage, agents and Tools anchored right. */
 async function drawTerminal($: Engine, e: Site, columns: number, isWorking: boolean): Promise<RenderChildren> {
   const { Box, Text, Button } = $.ui.resolve(e)
   const info = await collect($)
-  const parts: Part[] = []
 
-  parts.push({
+  const left: Part[] = []
+  const right: Part[] = []
+  left.push({
     priority: 1,
     width: 2 + info.model.length,
     node: (
@@ -231,7 +303,7 @@ async function drawTerminal($: Engine, e: Site, columns: number, isWorking: bool
     ),
   })
   if (info.effort !== null) {
-    parts.push({
+    left.push({
       priority: 4,
       width: 7 + info.effort.length,
       node: (
@@ -242,7 +314,7 @@ async function drawTerminal($: Engine, e: Site, columns: number, isWorking: bool
       ),
     })
   }
-  parts.push({
+  right.push({
     priority: 3,
     width: 4 + METER + 1 + `${info.ctx}%`.length,
     node: (
@@ -254,7 +326,7 @@ async function drawTerminal($: Engine, e: Site, columns: number, isWorking: bool
     ),
   })
   if (info.limits.length > 0) {
-    parts.push({
+    right.push({
       priority: 2,
       width: limitsWidth(info.limits, 2),
       node: (
@@ -273,21 +345,49 @@ async function drawTerminal($: Engine, e: Site, columns: number, isWorking: bool
     })
   }
   const agentText = `◇ ${agentWord(info.agents)}`
-  parts.push({ priority: 5, width: agentText.length, node: <Text dimColor>{agentText}</Text> })
+  right.push({ priority: 5, width: agentText.length, node: <Text dimColor>{agentText}</Text> })
+
+  const gitPart: Part | null =
+    info.git === null
+      ? null
+      : {
+          priority: 6,
+          width: GIT_MIN_WIDTH,
+          node: (
+            <Text wrap="truncate-end">
+              <Text dimColor>⎇ </Text>
+              <Text>{info.git.branch} </Text>
+              <Text color={info.git.upToDate ? 'green' : 'yellow'}>●</Text>
+            </Text>
+          ),
+        }
 
   // The desktop app has its own stop button, so the hint is for the terminal only.
   const prefix = isWorking ? 'esc to interrupt · ' : ''
-  const room = columns - 2 - prefix.length - (info.showTools ? TERMINAL_TOOLS.length + 5 : 0)
-  const kept = fitParts(parts, room, 2)
+  const room = columns - 2 - prefix.length - (info.showTools ? TERMINAL_TOOLS.length + 3 : 0)
+  const all = [...left, ...(gitPart ? [gitPart] : []), ...right]
+  const kept = new Set(fitParts(all, room, 2))
 
   return (
-    <Box flexDirection="row" justifyContent="space-between" alignItems="center" width="100%">
+    <Box flexDirection="row" alignItems="center" width="100%">
       {prefix !== '' ? <Text dimColor>{prefix}</Text> : null}
-      {kept.map(part => (
-        <Box flexShrink={0} marginRight={2}>
-          {part.node}
-        </Box>
-      ))}
+      {left
+        .filter(p => kept.has(p))
+        .map(part => (
+          <Box flexShrink={0} marginRight={2}>
+            {part.node}
+          </Box>
+        ))}
+      <Box flexGrow={1} flexShrink={1} overflow="hidden" marginRight={2}>
+        {gitPart !== null && kept.has(gitPart) ? gitPart.node : null}
+      </Box>
+      {right
+        .filter(p => kept.has(p))
+        .map(part => (
+          <Box flexShrink={0} marginLeft={2}>
+            {part.node}
+          </Box>
+        ))}
       {info.showTools ? (
         <Box marginLeft={3} flexShrink={0}>
           <Button key="open-tools" plain onPress={() => undefined}>
@@ -299,42 +399,20 @@ async function drawTerminal($: Engine, e: Site, columns: number, isWorking: bool
   )
 }
 
-/** The desktop app: every part in one shared rounded frame, with hairline dividers between them. */
+/** The desktop app: git from the left edge to the first right part; usage, agents and Tools anchored right. */
 async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderChildren> {
   const { Box, Text, Button, Svg } = $.ui.resolve(e as RenderInput<'AbovePrompt'> & { surface: 'desktop' })
   const info = await collect($)
-  const parts: Part[] = []
 
-  // A meter is a small picture, so it cannot read the app's theme: these colors read well on light and dark.
+  // Pictures cannot read the app's theme: these colors read well on light and dark.
   const meterBar = (percent: number) => (
     <Svg source={meterSvg(percent)} alt={`${percent}% used`} width={METER_PX} height={6} />
   )
-  const divider = () => <Svg source={DIVIDER_SVG} alt="divider" width={1} height={14} />
+  const divider = () => <Svg source={DIVIDER_SVG} alt="divider" width={1} height={DIVIDER_PX} />
 
-  parts.push({
-    priority: 1,
-    width: 2 + info.model.length,
-    node: (
-      <Text weight="medium">
-        <Text color="suggestion">✦ </Text>
-        {info.model}
-      </Text>
-    ),
-  })
-  if (info.effort !== null) {
-    parts.push({
-      priority: 4,
-      width: 7 + info.effort.length,
-      node: (
-        <Text>
-          <Text dimColor>effort </Text>
-          <Text>{info.effort}</Text>
-        </Text>
-      ),
-    })
-  }
+  const right: Part[] = []
   const usage = [{ name: 'ctx', percent: info.ctx }, ...info.limits]
-  parts.push({
+  right.push({
     priority: 2,
     width: usage.reduce((sum, u) => sum + u.name.length + 1 + METER_CELLS + 1 + `${u.percent}%`.length, 0) + (usage.length - 1) * 2,
     node: (
@@ -349,7 +427,7 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
       </Box>
     ),
   })
-  parts.push({
+  right.push({
     priority: 5,
     width: 2 + agentWord(info.agents).length,
     node: (
@@ -360,40 +438,53 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
     ),
   })
 
+  const gitPart: Part | null =
+    info.git === null
+      ? null
+      : {
+          priority: 6,
+          width: GIT_MIN_WIDTH,
+          node: (
+            <Box flexDirection="row" alignItems="center" gap={1} overflow="hidden">
+              <Svg source={BRANCH_SVG} alt="branch" width={12} height={12} />
+              <Text wrap="truncate-end">{info.git.branch}</Text>
+              <Text color={info.git.upToDate ? 'success' : 'warning'}>●</Text>
+            </Box>
+          ),
+        }
+
   // The app's font is narrower than a terminal cell, so a cell count overstates the width.
   const room = Math.round(columns * DESKTOP_CELL_RATIO) - 4 - (info.showTools ? DESKTOP_TOOLS.length + 4 : 0)
-  const kept = fitParts(parts, room, 3)
+  const kept = new Set(fitParts([...(gitPart ? [gitPart] : []), ...right], room, 3))
+  const shownRight = right.filter(p => kept.has(p))
 
   const row: RenderChildren[] = []
-  kept.forEach((part, i) => {
-    if (i > 0) row.push(divider())
+  row.push(
+    <Box flexGrow={1} flexShrink={1} overflow="hidden" paddingX={1}>
+      {gitPart !== null && kept.has(gitPart) ? gitPart.node : null}
+    </Box>,
+  )
+  shownRight.forEach(part => {
+    row.push(divider())
     row.push(
       <Box flexShrink={0} paddingX={1}>
         {part.node}
       </Box>,
     )
   })
-  // Tools sits outside the part that may shrink, so it always shows; the parts give way first.
+  if (info.showTools) {
+    row.push(divider())
+    row.push(
+      <Box flexShrink={0} flexDirection="row" alignItems="center" gap={1} paddingX={1}>
+        <Button key="open-tools" label={DESKTOP_TOOLS} plain onPress={() => undefined} />
+        <Svg source={CHEVRON_SVG} alt="opens upward" width={10} height={6} />
+      </Box>,
+    )
+  }
+
   return (
-    <Box
-      flexDirection="row"
-      alignItems="center"
-      width="100%"
-      borderStyle="round"
-      borderColor="subtle"
-      paddingX={1}
-    >
-      <Box flexDirection="row" justifyContent="space-between" alignItems="center" flexGrow={1} flexShrink={1} overflow="hidden">
-        {row}
-      </Box>
-      {info.showTools ? (
-        <Box flexDirection="row" alignItems="center" flexShrink={0} marginLeft={2}>
-          {divider()}
-          <Box marginLeft={2} paddingX={1}>
-            <Button key="open-tools" label={DESKTOP_TOOLS} plain onPress={() => undefined} />
-          </Box>
-        </Box>
-      ) : null}
+    <Box flexDirection="row" alignItems="center" width="100%" borderStyle="round" borderColor="subtle" paddingX={1}>
+      {row}
     </Box>
   )
 }
@@ -410,6 +501,7 @@ export function registerInfobar(on: On): void {
     const saved = await $.store.get(STORE_KEY)
     await update($, enabledAtom, () => (typeof saved === 'boolean' ? saved : true))
     await loadSaved($)
+    startGitWatch($)
     return next(e)
   })
 
@@ -470,7 +562,10 @@ export function registerInfobar(on: On): void {
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (e.agentId === undefined) await stopTicker($)
+    if (e.agentId === undefined) {
+      await refreshGit($)
+      await stopTicker($)
+    }
     return result
   })
 

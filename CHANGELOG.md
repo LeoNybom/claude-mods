@@ -31,6 +31,12 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.4.0
+- New git part: `⎇ <branch>` with a yellow dot for uncommitted or unpushed changes and a green one when all is committed and pushed. Hidden outside a git repository; git runs on your machine only, no tokens.
+- ctx/5h/7d, agents and Tools are anchored to the right; the git part gets the free room on the left.
+- Terminal: model and effort stay on the far left, followed by the git part.
+- Desktop app: model and effort are gone (the app already shows them), dividers run the full height and Tools gets a thin chevron.
+
 ### 0.3.4
 - Effort, 5h and 7d show from the moment a chat opens: until the first reply, the bar shows the last values it saw (a window whose reset time has passed shows 0%).
 

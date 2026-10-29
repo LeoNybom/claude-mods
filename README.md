@@ -19,7 +19,7 @@ One panel for everything: switch the model and effort with one click, turn each 
 
 ## Infobar
 
-One line under the prompt (in the desktop app: right above it): your model, effort, how full the chat is (green, then yellow at 60%, red at 85%), your 5-hour and 7-day usage, and running agents. On a narrow screen the least important parts are left out first.
+One line under the prompt (in the desktop app: right above it): your model and effort (terminal only), your git branch with a yellow or green dot, how full the chat is (green, then yellow at 60%, red at 85%), your 5-hour and 7-day usage, and running agents. On a narrow screen the least important parts are left out first.
 
 - Turn it on or off from the Tools panel, or type `/infobar on`, `/infobar off` or just `/infobar`.
 
