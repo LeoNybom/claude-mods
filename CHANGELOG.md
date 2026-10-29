@@ -31,6 +31,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.4.1
+- Desktop app: the whole Tools part opens Tools, chevron included.
+
 ### 0.4.0
 - New git part: `⎇ <branch>` with a yellow dot for uncommitted or unpushed changes and a green one when all is committed and pushed. Hidden outside a git repository; git runs on your machine only, no tokens.
 - ctx/5h/7d, agents and Tools are anchored to the right; the git part gets the free room on the left.

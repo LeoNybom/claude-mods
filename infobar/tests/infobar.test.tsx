@@ -231,3 +231,15 @@ test('the desktop draws the bar under the rest of the band, the terminal leaves 
   expect(await term.find({ type: 'Text', text: /agents/ })).toBeUndefined()
   await term.unmount()
 })
+
+test('the whole Tools part is one button: label and chevron press the same thing', async ($, on) => {
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const desk = await $.ui.mount(DESKTOP)
+  const tools = await desk.find({ type: 'Button', key: 'open-tools' })
+  expect(tools).toBeDefined()
+  expect(tools?.text).toContain('Tools')
+  expect(tools?.text).toContain('∧')
+  expect(await desk.findAll({ type: 'Button' })).toHaveLength(1)
+  await desk.unmount()
+})

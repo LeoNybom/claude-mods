@@ -21,9 +21,8 @@ const TRACK_HEX = 'rgba(128,128,128,0.35)'
 const DIVIDER_PX = 22
 const DIVIDER_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="22" viewBox="0 0 1 22" preserveAspectRatio="none"><rect width="1" height="22" fill="rgba(128,128,128,0.45)"/></svg>'
-/** A thin upward chevron, like the draft's. */
-const CHEVRON_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M1 5 L5 1 L9 5" fill="none" stroke="rgba(150,150,150,1)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+/** A thin upward chevron, drawn as text so it sits inside the Tools button. */
+const DESKTOP_CHEVRON = '∧'
 /** A git branch mark: two dots joined by a line. */
 const BRANCH_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(150,150,150,1)" stroke-width="1.2" stroke-linecap="round"><circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="4" r="1.5"/><path d="M3 4v4M9 5.5c0 2-6 1-6 2.5"/></svg>'
@@ -454,7 +453,7 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
         }
 
   // The app's font is narrower than a terminal cell, so a cell count overstates the width.
-  const room = Math.round(columns * DESKTOP_CELL_RATIO) - 4 - (info.showTools ? DESKTOP_TOOLS.length + 4 : 0)
+  const room = Math.round(columns * DESKTOP_CELL_RATIO) - 4 - (info.showTools ? DESKTOP_TOOLS.length + 6 : 0)
   const kept = new Set(fitParts([...(gitPart ? [gitPart] : []), ...right], room, 3))
   const shownRight = right.filter(p => kept.has(p))
 
@@ -475,9 +474,13 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
   if (info.showTools) {
     row.push(divider())
     row.push(
-      <Box flexShrink={0} flexDirection="row" alignItems="center" gap={1} paddingX={1}>
-        <Button key="open-tools" label={DESKTOP_TOOLS} plain onPress={() => undefined} />
-        <Svg source={CHEVRON_SVG} alt="opens upward" width={10} height={6} />
+      // One Button holds the label and the chevron, so a click anywhere on the part opens Tools.
+      // A Button may hold only text, so the chevron is a thin glyph here, not a picture.
+      <Box flexShrink={0} paddingX={1}>
+        <Button key="open-tools" label={DESKTOP_TOOLS} plain onPress={() => undefined}>
+          <Text>{DESKTOP_TOOLS} </Text>
+          <Text dimColor>{DESKTOP_CHEVRON}</Text>
+        </Button>
       </Box>,
     )
   }
