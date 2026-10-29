@@ -9,6 +9,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## clean-view
 
+### 0.2.1
+- Costs no tokens while off: Claude gets its two checklist tools only while Clean View is on (turned off mid-chat, they wait behind tool search), and no job name is asked of Haiku.
+
 ### 0.2.0
 - Adds an on/off row to the Tools box, and hides its own button when Tools is installed.
 - Shares the band above the prompt with Tools and the Infobar.

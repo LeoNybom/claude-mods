@@ -27,6 +27,39 @@ const ALWAYS_ALLOWED = new Set([
   PROGRESS_TOOL,
 ])
 
+const PLAN_SPEC = {
+  name: 'plan_steps',
+  description:
+    'Lay out every step of the job up front, before any other tool: 2 to 8 short steps in order, ' +
+    'each in plain English a non-technical person understands, under 40 characters, starting with a verb ' +
+    '(like "Build the pricing section"). Never put file paths, file names, commands, code or tool names in a step. ' +
+    'The first step starts right away.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      steps: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 },
+    },
+    required: ['steps'],
+  },
+  isDeferred: false,
+}
+
+const PROGRESS_SPEC = {
+  name: 'report_progress',
+  description:
+    'Report progress on the current step of the plan: its plain-English name and a percent from 0 to 100. ' +
+    'Call it as real progress happens, and with 100 the moment a step finishes; the next step then starts by itself.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      task: { type: 'string' },
+      percent: { type: 'number', minimum: 0, maximum: 100 },
+    },
+    required: ['task', 'percent'],
+  },
+  isDeferred: false,
+}
+
 const PLACEHOLDERS = ['Understand your request', 'Plan the steps']
 
 const EMPTY: CleanViewChecklist = {
@@ -268,6 +301,15 @@ async function checkToolbox($: Engine): Promise<boolean> {
 let collapseTimer: { cancel: () => void } | undefined
 let failuresInARow = 0
 let lastApiError: string | undefined
+let toolsRegistered = false
+
+/** Gives Claude its two tools. Only done while Clean View is on, so they cost no tokens while it is off. */
+async function registerTools($: Engine): Promise<void> {
+  if (toolsRegistered) return
+  await $.tool.register(PLAN_SPEC)
+  await $.tool.register(PROGRESS_SPEC)
+  toolsRegistered = true
+}
 
 /** Runs the 250ms clock only while a job is working or waiting on you. */
 function syncTicker($: Engine, list: CleanViewChecklist): void {
@@ -290,6 +332,9 @@ async function change($: Engine, fn: (list: CleanViewChecklist) => CleanViewChec
 async function setEnabled($: Engine, value: boolean): Promise<void> {
   await update($, enabledAtom, () => value)
   await $.store.set(STORE_KEY, value)
+  if (value) await registerTools($)
+  // Asks the tool.describe hook again: the two tools come back in front, or wait behind ToolSearch.
+  $.ui.invalidate('tool.describe')
   $.ui.toast(value ? 'Clean View is on: tool rows are hidden.' : 'Clean View is off: everything is shown again.')
 }
 
@@ -339,37 +384,6 @@ async function nameJob($: Engine, jobId: number, request: string): Promise<void>
 export function registerCleanView(on: On): void {
   // --- Session start: tools, command, saved setting, timers after a reload ---
   on('session.start', async ($, e, next) => {
-    await $.tool.register({
-      name: 'plan_steps',
-      description:
-        'Lay out every step of the job up front, before any other tool: 2 to 8 short steps in order, ' +
-        'each in plain English a non-technical person understands, under 40 characters, starting with a verb ' +
-        '(like "Build the pricing section"). Never put file paths, file names, commands, code or tool names in a step. ' +
-        'The first step starts right away.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          steps: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 },
-        },
-        required: ['steps'],
-      },
-      isDeferred: false,
-    })
-    await $.tool.register({
-      name: 'report_progress',
-      description:
-        'Report progress on the current step of the plan: its plain-English name and a percent from 0 to 100. ' +
-        'Call it as real progress happens, and with 100 the moment a step finishes; the next step then starts by itself.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          task: { type: 'string' },
-          percent: { type: 'number', minimum: 0, maximum: 100 },
-        },
-        required: ['task', 'percent'],
-      },
-      isDeferred: false,
-    })
     await $.command.register({
       name: 'simple',
       description: 'Turn Clean View on or off (no argument flips it)',
@@ -377,10 +391,24 @@ export function registerCleanView(on: On): void {
     })
     // Always written, so the Tools box knows Clean View is installed.
     const saved = await $.store.get(STORE_KEY)
-    await update($, enabledAtom, () => (typeof saved === 'boolean' ? saved : true))
+    const enabled = typeof saved === 'boolean' ? saved : true
+    await update($, enabledAtom, () => enabled)
+    if (enabled) {
+      await registerTools($)
+      // A resumed chat keeps the placement it recorded, so ask again.
+      $.ui.invalidate('tool.describe')
+    }
     syncTicker($, await read($, checklistAtom))
     return next(e)
   })
+
+  // --- Tools registered earlier stay, so while off they wait behind ToolSearch ---
+  for (const tool of [PLAN_TOOL, PROGRESS_TOOL]) {
+    on('tool.describe', { tool }, async ($, e, next) => {
+      const described = await next(e)
+      return (await read($, enabledAtom)) ? described : { ...described, isDeferred: true }
+    })
+  }
 
   // --- The /simple command ---
   on('command.run', { command: 'simple' }, async ($, e) => {
@@ -432,9 +460,12 @@ export function registerCleanView(on: On): void {
         collapseTimer?.cancel()
         await change($, () => newJob(jobId, now))
         // Ask Haiku for a name outside this hook, so the turn never waits.
-        $.clock.after(0, () => {
-          void nameJob($, jobId, text).catch(() => undefined)
-        })
+        // Only while on: the name shows nowhere else, and the call costs tokens.
+        if (await read($, enabledAtom)) {
+          $.clock.after(0, () => {
+            void nameJob($, jobId, text).catch(() => undefined)
+          })
+        }
       }
     }
     return next(e)

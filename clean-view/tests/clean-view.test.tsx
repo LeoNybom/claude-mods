@@ -26,15 +26,34 @@ const USAGE = {
   cache_read_input_tokens: 0,
 }
 
+const PRESENTATION = { isFullscreen: false, columns: 80 } as const
+
+/** What the engine beneath was asked for: the tools registered and the job names asked of Haiku. */
+type Seen = { tools: string[]; namesAsked: number }
+
+type SetupOptions = {
+  commands?: string[]
+  stored?: Record<string, unknown>
+  seen?: Seen
+}
+
 /** Stands in for the engine beneath the plugin. */
-async function setup($: Parameters<Parameters<typeof test>[1]>[0], on: On, commands: string[] = []) {
-  mock.store(on)
+async function setup($: Parameters<Parameters<typeof test>[1]>[0], on: On, options: SetupOptions = {}) {
+  const { commands = [], stored = {}, seen = { tools: [], namesAsked: 0 } } = options
+  mock.store(on, stored)
   const clock = mock.clock(on, { now: 1_000_000 })
-  on('tool.register', (_, e) => ({ value: { tool: `mcp__clean-view__${e.name}` } }))
+  on('tool.register', (_, e) => {
+    seen.tools.push(e.name)
+    return { value: { tool: `mcp__clean-view__${e.name}` } }
+  })
+  on('tool.describe', (_, e) => ({ description: e.description }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
-  on('model.complete', () => ({ value: { isAnswered: true, text: 'Build my landing page', usage: USAGE } }))
+  on('model.complete', () => {
+    seen.namesAsked += 1
+    return { value: { isAnswered: true, text: 'Build my landing page', usage: USAGE } }
+  })
   on('classic.Notification', () => ({}))
   on('tool.call', () => ({ result: {}, text: 'ok' }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -199,11 +218,42 @@ test('extra: the band keeps what the other mods draw beneath it', async ($, on) 
 })
 
 test('extra: with the Tools box installed, the band leaves out its own button', async ($, on) => {
-  await setup($, on, ['toolbox'])
+  await setup($, on, { commands: ['toolbox'] })
   await $.turn.start({ text: 'Write a poem', turnId: 't1' })
   await $.tool.call({ tool: PLAN, steps: ['Write the poem'] } as never)
   const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /^Write the poem/ })).toBeDefined()
   expect(await ui.find({ type: 'Button', key: 'clean-view-toggle' })).toBeUndefined()
   await ui.unmount()
+})
+
+test('extra: while off, Claude gets no tools and Haiku names no job', async ($, on) => {
+  const seen: Seen = { tools: [], namesAsked: 0 }
+  const clock = await setup($, on, { stored: { cleanViewEnabled: false }, seen })
+  await $.turn.start({ text: 'Write a poem', turnId: 't1' })
+  await clock.advance(10)
+  expect(seen.tools).toEqual([])
+  expect(seen.namesAsked).toBe(0)
+
+  await $.command.run({ command: 'simple', args: 'on', origin: { kind: 'composer' }, presentation: PRESENTATION })
+  expect(seen.tools).toEqual(['plan_steps', 'report_progress'])
+  await $.turn.start({ text: 'Write a song', turnId: 't2' })
+  await clock.advance(10)
+  expect(seen.namesAsked).toBe(1)
+})
+
+test('extra: turned off mid-session, its tools wait behind ToolSearch', async ($, on) => {
+  const seen: Seen = { tools: [], namesAsked: 0 }
+  await setup($, on, { seen })
+  expect(seen.tools).toEqual(['plan_steps', 'report_progress'])
+  const describe = () =>
+    $.tool.describe({ tool: PLAN, description: 'Lay out every step', provider: { plugin: 'clean-view', tier: 'user' } })
+  expect((await describe()).isDeferred).toBeUndefined()
+
+  await $.command.run({ command: 'simple', args: 'off', origin: { kind: 'composer' }, presentation: PRESENTATION })
+  expect((await describe()).isDeferred).toBe(true)
+
+  await $.command.run({ command: 'simple', args: 'on', origin: { kind: 'composer' }, presentation: PRESENTATION })
+  expect((await describe()).isDeferred).toBeUndefined()
+  expect(seen.tools).toEqual(['plan_steps', 'report_progress'])
 })
