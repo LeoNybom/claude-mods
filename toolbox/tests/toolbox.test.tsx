@@ -94,3 +94,19 @@ test('the box shows model, effort, mods and quick actions, and the buttons work'
   expect(await ui.find({ type: 'Text', text: /T O O L S/ })).toBeUndefined()
   await ui.unmount()
 })
+
+test('Clean Info Agents gets an on/off row once it has written its value', async ($, on) => {
+  engine(on, { configSets: [], commands: [] })
+  // Clean Info Agents is installed and off; the other mods are not installed.
+  on('state.get', (_$, e, next) =>
+    ((e as { plugin: string }).plugin === 'clean-info-agents' ? { value: { value: false, version: 1 } } : next(e)) as never,
+  )
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'toolbox', args: '', ...RUN })
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^Clean Info Agents$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'mod:clean-info-agents' })).toMatchObject({ props: { label: '○ Off' } })
+  expect(await ui.find({ type: 'Text', text: /No mods installed yet/ })).toBeUndefined()
+  await ui.unmount()
+})

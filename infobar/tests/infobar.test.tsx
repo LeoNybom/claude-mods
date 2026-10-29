@@ -28,9 +28,11 @@ const USAGE = {
 const DIRTY = '## feature/git...origin/feature/git\n M infobar/hooks/infobar.tsx\n'
 const CLEAN = '## main...origin/main\n'
 
-type Setup = { commands?: string[]; usage?: unknown; stored?: Record<string, unknown>; git?: string | null }
+/** What lies beneath the Infobar under the prompt: plain text, Claude Code's own hint, or another mod's row. */
+type Beneath = 'text' | 'engine' | 'row'
+type Setup = { commands?: string[]; usage?: unknown; stored?: Record<string, unknown>; git?: string | null; beneath?: Beneath }
 
-function engine(on: On, { commands = ['toolbox'], usage = USAGE, stored = {}, git = null }: Setup = {}) {
+function engine(on: On, { commands = ['toolbox'], usage = USAGE, stored = {}, git = null, beneath = 'text' }: Setup = {}) {
   mock.store(on, stored)
   mock.clock(on)
   on('command.register', (_, e) => ({ value: { command: e.name } }))
@@ -48,8 +50,9 @@ function engine(on: On, { commands = ['toolbox'], usage = USAGE, stored = {}, gi
   on('command.run', () => ({ text: '' }))
   on('ui.toast', () => ({ value: undefined }))
   on('ui.render', ($, e) => {
+    if (e.component === 'PromptHint' && beneath === 'engine') return { type: 'engine', ref: 0 } as never
     const { Text } = $.ui.resolve(e)
-    return <Text>engine hint</Text>
+    return <Text>{e.component === 'PromptHint' && beneath === 'row' ? 'progress row' : 'engine hint'}</Text>
   })
 }
 
@@ -242,4 +245,25 @@ test('the whole Tools part is one button: label and chevron press the same thing
   expect(tools?.text).toContain('∧')
   expect(await desk.findAll({ type: 'Button' })).toHaveLength(1)
   await desk.unmount()
+})
+
+test('terminal: a row another mod draws under the prompt stays right above the bar', async ($, on) => {
+  engine(on, { beneath: 'row' })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount(TERMINAL)
+  const all = (await ui.findAll({ type: 'Text' })).map(t => t.text ?? '')
+  await ui.unmount()
+  const row = all.findIndex(t => /progress row/.test(t))
+  const bar = all.findIndex(t => /Opus 5\.5/.test(t))
+  expect(row).toBeGreaterThanOrEqual(0)
+  expect(bar).toBeGreaterThan(row)
+})
+
+test("terminal: Claude Code's own hint is replaced, never drawn above the bar", async ($, on) => {
+  engine(on, { beneath: 'engine' })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount(TERMINAL)
+  expect(await ui.find({ type: 'Text', text: /Opus 5\.5/ })).toBeDefined()
+  expect(await ui.find({ type: 'engine' } as never)).toBeUndefined()
+  await ui.unmount()
 })

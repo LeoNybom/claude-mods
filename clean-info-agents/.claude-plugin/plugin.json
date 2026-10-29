@@ -1,0 +1,22 @@
+{
+  "name": "clean-info-agents",
+  "version": "0.1.0",
+  "description": "Clean Info Agents: /savvy-flow plans and hands work to five tiered agents, with a progress bar above the Infobar and a live panel of every agent.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Panel language",
+      "description": "auto follows Claude Code's language setting, then the system locale; en, ru or he (Hebrew, drawn right to left)",
+      "default": "auto",
+      "options": ["auto", "en", "ru", "he"]
+    },
+    "autoOpen": {
+      "type": "string",
+      "title": "Open the agents panel",
+      "description": "savvy: when a savvy-flow agent starts or a plan is reported; any: also when any other subagent starts",
+      "default": "savvy",
+      "options": ["savvy", "any"]
+    }
+  }
+}
