@@ -36,7 +36,8 @@ Turns a rough prompt into a great one before it is sent. A pane asks up to three
 
 Lets Claude plan a bigger task and hand the work to helper agents, while you watch it happen. Based on savvy-flow and savvy-progress from [claude-kit](https://github.com/JohnnyVizz/claude-kit) by johnnyvizz (MIT, see [LICENSE-claude-kit](clean-info-agents/LICENSE-claude-kit)).
 
-- `/savvy-flow <task>` (`/clean-info-agents:savvy-flow` when installed as a plugin): Claude plans, decides the design, hands each task to the cheapest agent that gets it right, and checks what comes back.
+- `/cia <task>` (or `/clean-info-agents:savvy-flow <task>`): Claude plans, decides the design, hands each task to the cheapest agent that gets it right, and checks what comes back.
+  - Example: `/cia add a dark mode toggle to the settings page`
 - Five agents, each a plain file in `clean-info-agents/agents/` that you can change (model, effort, rules):
 
   | Agent | Model / effort | For |

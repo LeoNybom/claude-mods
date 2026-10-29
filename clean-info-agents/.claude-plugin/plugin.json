@@ -1,6 +1,6 @@
 {
   "name": "clean-info-agents",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Clean Info Agents: /savvy-flow plans and hands work to five tiered agents, with a progress bar above the Infobar and a live panel of every agent.",
   "types": "./types/index.d.ts",
   "userConfig": {

@@ -29,6 +29,8 @@ const STEP_BRIEF = `
 
 Progress reporting: before any other work, call \`${STEP_TOOL}\` with \`total\` (your plan in 3-8 steps) and \`done: 0\`; call it again with \`done\` and a few-word \`note\` as each step finishes. It only draws a progress bar.`
 const PANE = 'savvy-agents'
+// The skill as Claude Code names it once this plugin ships it.
+const SKILL_COMMAND = 'clean-info-agents:savvy-flow'
 const PHASES: readonly Phase[] = ['plan', 'design', 'delegate', 'review', 'close']
 const TIERS: readonly string[] = ['fable', 'heavy', 'careful', 'medium', 'light']
 // The tools' schemas are advice to the model, not a check: what a call may ask
@@ -897,6 +899,11 @@ export const registerAgents: Register = (on, options) => {
         'Show or hide the panel of subagents (running, finished and planned, with model, context, cost and time); on or off turns Clean Info Agents on or off',
       argumentHint: 'on|off|open',
     })
+    await $.command.register({
+      name: 'cia',
+      description: 'Run savvy-flow on a task: Claude plans, hands the work to tiered agents and reviews what comes back',
+      argumentHint: '<task>',
+    })
 
     // Ticks the running agents' clocks; quiet when nothing runs.
     $.clock.every(1000, () => {
@@ -926,6 +933,20 @@ export const registerAgents: Register = (on, options) => {
     }
     const isOpen = await togglePane($)
     return { text: isOpen ? tr().opened : tr().closed }
+  })
+
+  // `/cia <task>`: a short name for the plugin's savvy-flow skill.
+  // A command cannot run another while it holds the turn, so the skill runs
+  // right after this one has answered.
+  on('command.run', { command: 'cia' }, async ($, e) => {
+    const task = (e.args ?? '').trim()
+    if (task === '') return { text: 'Write the task after the command: /cia <task>' }
+    $.clock.after(0, () => {
+      void $.command.run({ command: SKILL_COMMAND, args: task }).catch(() => {
+        $.ui.toast(`Couldn't start savvy-flow. Type /${SKILL_COMMAND} ${task} instead.`)
+      })
+    })
+    return {}
   })
 
   // Its row in the Tools box.
@@ -1313,13 +1334,17 @@ async function drawRow(
   // The terminal's element table is completed with an `Svg` that draws nothing: test the surface too.
   if (e.surface !== 'terminal' && 'Svg' in ui) {
     const { Svg } = ui
-    // About 8 CSS px per reported column; the rest is the count, the dismiss
-    // and their gaps. No floor above the slot: a row wider than it would wrap.
-    const width = Math.max(180, Math.min(1600, (cols || 100) * 8 - 96))
+    // Columns are the pane's width over the code font's advance, about 7.8 CSS px, so the
+    // band is about cols × 7.8 wide. Its padding, the count, the dismiss and their gaps
+    // take about 100 px; 7.6 leaves a little slack, since a row wider than the slot wraps
+    // and cuts off the crab (8 and 96 did). The spacer puts the count and the dismiss at
+    // the right edge, where the Infobar's Tools sits.
+    const width = Math.max(180, Math.min(1600, Math.round((cols || 100) * 7.6) - 100))
     return (
-      <Box flexDirection="column">
-        <Box flexDirection={isRtl() ? 'row-reverse' : 'row'} alignItems="center" gap={1}>
+      <Box flexDirection="column" width="100%">
+        <Box flexDirection={isRtl() ? 'row-reverse' : 'row'} alignItems="center" gap={1} width="100%">
           <Svg source={rowSvg(f, width, isWorking)} alt={`${f.title}: ${label(f)}, ${percent}`} width={width} height={H} />
+          <Box flexGrow={1} />
           {crewButton}
           {dismiss}
         </Box>

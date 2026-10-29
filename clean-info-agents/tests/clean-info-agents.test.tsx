@@ -35,19 +35,24 @@ type Setup = {
   stored?: Record<string, unknown>
   /** Collects the prompts subagents are started with. */
   spawned?: string[]
+  /** Collects the toasts shown. */
+  toasts?: string[]
   /** Collects this mod's on/off writes. */
   writes?: unknown[]
 }
 
-async function start($: Engine, on: On, setup: Setup = {}): Promise<void> {
-  mock.clock(on, { now: Date.parse('2026-10-29T12:00:00Z') })
+async function start($: Engine, on: On, setup: Setup = {}) {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-29T12:00:00Z') })
   mock.env(on, { LANG: 'en_US.UTF-8' })
   mock.store(on, setup.stored)
   on('settings.read', async () => ({ value: {} }) as never)
   on('session.start', async () => ({ cwd: '/repo' }) as never)
   on('tool.register', (_$, e) => ({ value: { tool: (e as { name: string }).name } }) as never)
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
-  on('ui.toast', () => ({ value: undefined }))
+  on('ui.toast', (_$, e) => {
+    setup.toasts?.push(JSON.stringify(e))
+    return { value: undefined }
+  })
   on('ui.open', () => ({ value: { isPlaced: true } }))
   if (setup.infobar) {
     on('state.get', (_$, e, next) =>
@@ -79,6 +84,7 @@ async function start($: Engine, on: On, setup: Setup = {}): Promise<void> {
   })
   await $.session.start({ source: 'startup', cwd: '/repo', surface: 'terminal', isInteractive: true } as never)
   await $.tool.call({ tool: PROGRESS, title: 'Ship it', total: 4, done: 1, phase: 'delegate' } as never)
+  return clock
 }
 
 async function texts($: Engine, mounted: { findAll: (q: object) => Promise<{ text?: string; props: Record<string, unknown> }[]>; unmount: () => Promise<void> }) {
@@ -205,4 +211,24 @@ test('plugin-named savvy agents get the step reminder, as bare ones do', async (
     fork: false,
   } as never)
   expect(prompts[0]).toContain('mcp__clean-info-agents__step')
+})
+
+test('/cia <task> runs the savvy-flow skill with the task, right after it answers', async ($, on) => {
+  const runs: string[] = []
+  on('command.run', { command: 'clean-info-agents:savvy-flow' }, (_$, e) => {
+    runs.push(e.args)
+    return { text: '' }
+  })
+  const toasts: string[] = []
+  const clock = await start($, on, { toasts })
+  const answer = await $.command.run({ command: 'cia', args: '  bygg kassaflödet  ', ...RUN })
+  expect(answer.text).toBeUndefined()
+  await clock.advance(1)
+  expect(runs).toEqual(['bygg kassaflödet'])
+  expect(toasts).toEqual([])
+
+  const empty = await $.command.run({ command: 'cia', args: '', ...RUN })
+  expect(empty.text).toContain('/cia <task>')
+  await clock.advance(1)
+  expect(runs).toHaveLength(1)
 })

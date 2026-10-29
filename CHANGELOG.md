@@ -81,6 +81,10 @@ claude plugin update <mod>@leonybom-mods
 
 ## clean-info-agents
 
+### 0.2.0
+- `/cia <task>` starts savvy-flow, a short name for `/clean-info-agents:savvy-flow`.
+- Desktop app: the progress bar spans the full width like the Infobar, with `×N` and ✕ at the right edge, and the crab is no longer cut off.
+
 ### 0.1.0
 - First version, based on savvy-flow and savvy-progress from [claude-kit](https://github.com/JohnnyVizz/claude-kit) (MIT): `/savvy-flow` and its five tiered agents, a progress bar and an agents panel (`/agents-info`).
 - Terminal: the bar and the panel use the terminal theme's own colors, and with the Infobar on the bar sits right above it, under the prompt.
