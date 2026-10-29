@@ -180,7 +180,7 @@ test('outside a git repository the git part is hidden', async ($, on) => {
   }
 })
 
-test('the terminal uses glyph meters in terminal colors, the desktop one shared rounded frame', async ($, on) => {
+test('the terminal uses glyph meters in terminal colors, the desktop a bar with no frame', async ($, on) => {
   engine(on, { git: DIRTY })
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   const ui = await $.ui.mount(TERMINAL)
@@ -191,7 +191,8 @@ test('the terminal uses glyph meters in terminal colors, the desktop one shared 
 
   // About as wide as the app's prompt: every part should still fit.
   const desk = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns: 100 }, surface: 'desktop' })
-  expect((await desk.findAll({ type: 'Box' })).some(b => b.props.borderStyle === 'round')).toBe(true)
+  // The band's own background is the bar, so no border is drawn around it.
+  expect((await desk.findAll({ type: 'Box' })).some(b => b.props.borderStyle !== undefined)).toBe(false)
   expect(await desk.find({ type: 'Text', text: '▰▰▱▱▱▱▱▱▱▱' })).toBeUndefined()
   expect(await desk.find({ type: 'Svg' })).toBeDefined()
   expect(await desk.find({ type: 'Text', text: /feature\/git/ })).toBeDefined()

@@ -31,6 +31,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.4.3
+- Desktop app: no frame around the bar. The band's own background is the bar, as wide and as tall as the empty prompt box (44 px), and the dividers run the height of the row.
+
 ### 0.4.2
 - Desktop app: the chevron on Tools shows again.
 
