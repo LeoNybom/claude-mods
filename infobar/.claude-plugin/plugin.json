@@ -1,6 +1,6 @@
 {
   "name": "infobar",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Infobar: one line under the prompt with your model, effort, git branch, how full the chat is, usage limits and running agents.",
   "types": "./types/index.d.ts"
 }

@@ -477,7 +477,7 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
       // One Button holds the label and the chevron, so a click anywhere on the part opens Tools.
       // A Button may hold only text, so the chevron is a thin glyph here, not a picture.
       <Box flexShrink={0} paddingX={1}>
-        <Button key="open-tools" label={DESKTOP_TOOLS} plain onPress={() => undefined}>
+        <Button key="open-tools" plain onPress={() => undefined}>
           <Text>{DESKTOP_TOOLS} </Text>
           <Text dimColor>{DESKTOP_CHEVRON}</Text>
         </Button>

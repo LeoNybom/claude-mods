@@ -31,6 +31,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.4.2
+- Desktop app: the chevron on Tools shows again.
+
 ### 0.4.1
 - Desktop app: the whole Tools part opens Tools, chevron included.
 
