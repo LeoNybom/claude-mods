@@ -36,8 +36,9 @@ const openAtom = atom({ plugin: 'toolbox', key: 'isOpen' } as const, false)
 const cleanViewRef = { plugin: 'clean-view', key: 'cleanViewEnabled' } as const
 const infobarRef = { plugin: 'infobar', key: 'enabled' } as const
 const promptUpgradeRef = { plugin: 'prompt-upgrade', key: 'auto' } as const
+const cleanInfoAgentsRef = { plugin: 'clean-info-agents', key: 'enabled' } as const
 
-type ModName = 'clean-view' | 'infobar' | 'prompt-upgrade'
+type ModName = 'clean-view' | 'infobar' | 'prompt-upgrade' | 'clean-info-agents'
 
 /** "claude-opus-5-5" → "Opus 5.5"; anything unknown is shown as given. */
 export function modelLabel(id: string): string {
@@ -89,7 +90,9 @@ async function readFlag($: Engine, which: ModName): Promise<boolean | undefined>
       ? await $.state.get(cleanViewRef)
       : which === 'infobar'
         ? await $.state.get(infobarRef)
-        : await $.state.get(promptUpgradeRef)
+        : which === 'prompt-upgrade'
+          ? await $.state.get(promptUpgradeRef)
+          : await $.state.get(cleanInfoAgentsRef)
   return typeof held.value === 'boolean' ? held.value : undefined
 }
 
@@ -169,6 +172,7 @@ export function registerToolbox(on: On): void {
       { plugin: 'clean-view', name: 'Clean View', about: 'simple checklist' },
       { plugin: 'infobar', name: 'Infobar', about: 'info bar under the prompt' },
       { plugin: 'prompt-upgrade', name: 'Prompt Upgrade', about: 'better prompts' },
+      { plugin: 'clean-info-agents', name: 'Clean Info Agents', about: 'agent progress and panel' },
     ]
     const modRows: unknown[] = []
     for (const mod of mods) {
@@ -178,7 +182,7 @@ export function registerToolbox(on: On): void {
         <Box flexDirection="row" justifyContent="space-between" alignItems="center">
           <Box flexDirection="row">
             <Text color={isOn ? 'success' : 'inactive'}>{isOn ? '● ' : '○ '}</Text>
-            <Box width={17}>
+            <Box width={19}>
               <Text bold>{mod.name}</Text>
             </Box>
             <Text dimColor>{mod.about}</Text>

@@ -19,6 +19,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## toolbox
 
+### 0.3.0
+- Adds a row for Clean Info Agents, with a wider name column so its name fits.
+
 ### 0.2.0
 - Opens as a framed box right above the prompt instead of a side pane.
 - The chosen model and effort are highlighted.
@@ -31,8 +34,11 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
-### 0.4.3
+### 0.4.4
 - Desktop app: no frame around the bar. The band's own background is the bar, as wide and as tall as the empty prompt box (44 px), and the dividers run the height of the row.
+
+### 0.4.3
+- Terminal: a row another mod draws under the prompt (such as the Clean Info Agents progress bar) stays, right above the Infobar.
 
 ### 0.4.2
 - Desktop app: the chevron on Tools shows again.
@@ -75,3 +81,11 @@ claude plugin update <mod>@leonybom-mods
 
 ### 0.1.0
 - First version: `/better` turns a rough prompt into a great one, with questions, a rewrite and a side-by-side review.
+
+## clean-info-agents
+
+### 0.1.0
+- First version, based on savvy-flow and savvy-progress from [claude-kit](https://github.com/JohnnyVizz/claude-kit) (MIT): `/savvy-flow` and its five tiered agents, a progress bar and an agents panel (`/agents-info`).
+- Terminal: the bar and the panel use the terminal theme's own colors, and with the Infobar on the bar sits right above it, under the prompt.
+- An on/off row in the Tools box, and `/agents-info on` or `off`.
+- Recognises the agents with their plugin name in front (`clean-info-agents:savvy-careful`).

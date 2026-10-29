@@ -581,7 +581,19 @@ export function registerInfobar(on: On): void {
   // --- In the terminal: the line under the prompt ---
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     if (e.surface !== 'terminal' || !(await read($, enabledAtom))) return next(e)
-    return (await drawTerminal($, e, e.viewport?.columns ?? 100, e.props.isWorking)) as never
+    // A row another mod draws here (such as Clean Info Agents' progress bar) stays, right above the bar.
+    // Claude Code's own hint ({ type: 'engine' }) is the one the bar replaces.
+    const drawn = await Promise.resolve(next(e)).catch(() => null)
+    const above = drawn && typeof drawn === 'object' && (drawn as { type?: string }).type !== 'engine' ? drawn : null
+    const bar = await drawTerminal($, e, e.viewport?.columns ?? 100, e.props.isWorking)
+    if (above === null) return bar as never
+    const { Box } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column">
+        {above as RenderChildren}
+        {bar}
+      </Box>
+    ) as never
   })
 
   // --- In the desktop app: a framed row at the bottom of the band right above the prompt ---
