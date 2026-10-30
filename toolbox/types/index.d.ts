@@ -14,6 +14,8 @@ declare module 'claude-code' {
       revision: number
       /** Whether the box is open. */
       isOpen: boolean
+      /** The first list row showing under the popup's header. */
+      offset: number
     }
   }
 }

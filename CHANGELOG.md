@@ -19,6 +19,13 @@ claude plugin update <mod>@leonybom-mods
 
 ## toolbox
 
+### 0.4.0
+- No frame and no orange: the box sits on the band's own background.
+- Mods: the name is the switch (no On/Off buttons), with a green dot while on and an empty ring of the same size while off; rest the pointer on a mod to see what it does. Clearer descriptions.
+- Desktop app: everything on one row above the Infobar, with a line between MODS and QUICK; on a narrow window each takes its own row, its title first. No model and effort (the app shows them), no header and no ✕.
+- Desktop app: with the Infobar off, Tools draws its own ∧ Tools button (∨ while open), so turning the Infobar off never locks you out.
+- Terminal: the list scrolls under its header when the room above the prompt is short, with ▲ and ▼ and a scrollbar.
+
 ### 0.3.0
 - Adds a row for Clean Info Agents, with a wider name column so its name fits.
 
