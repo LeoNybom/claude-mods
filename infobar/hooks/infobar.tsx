@@ -17,10 +17,16 @@ const METER_CELLS = 4
 const DESKTOP_CELL_RATIO = 1.2
 const LEVEL_HEX = { success: '#3fb950', warning: '#d29922', error: '#f85149' } as const
 const TRACK_HEX = 'rgba(128,128,128,0.35)'
+/**
+ * No frame: the band's own background is the bar. The band adds 10 px above and below,
+ * the row is 20 px, and BAR_PAD_Y adds 2 px on each side: 44 px, as tall as the empty prompt box.
+ */
+const BAR_PAD_Y = 0.2
 /** Dividers run the whole height of the row. */
-const DIVIDER_PX = 22
+const DIVIDER_PX = 20
 const DIVIDER_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="22" viewBox="0 0 1 22" preserveAspectRatio="none"><rect width="1" height="22" fill="rgba(128,128,128,0.45)"/></svg>'
+  `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="${DIVIDER_PX}" viewBox="0 0 1 ${DIVIDER_PX}" preserveAspectRatio="none">` +
+  `<rect width="1" height="${DIVIDER_PX}" fill="rgba(128,128,128,0.45)"/></svg>`
 /** A thin upward chevron, drawn as text so it sits inside the Tools button. */
 const DESKTOP_CHEVRON = '∧'
 /** A git branch mark: two dots joined by a line. */
@@ -486,7 +492,7 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
   }
 
   return (
-    <Box flexDirection="row" alignItems="center" width="100%" borderStyle="round" borderColor="subtle" paddingX={1}>
+    <Box flexDirection="row" alignItems="center" width="100%" paddingX={1} paddingY={BAR_PAD_Y}>
       {row}
     </Box>
   )
