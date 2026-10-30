@@ -14,7 +14,7 @@ Makes Claude Code calm and friendly for people who aren't technical. While Claud
 
 One panel for everything: switch the model and effort with one click, turn each mod on or off, and run quick actions (`/compact`, `/clear`).
 
-- It opens as a framed box right above the prompt. Open or close it by clicking **◆ Tools ▲** at the right of the Infobar, or type `/toolbox`; ✕ closes it too.
+- It opens as a framed box right above the prompt. Open or close it by clicking **◆ Tools ▲** at the right of the Infobar (in the desktop app **∧ Tools** at its left, pointing down while open), or type `/toolbox`; ✕ closes it too.
 - Clean View, Infobar, Prompt Upgrade and Clean Info Agents each get an on/off row under MODS once they are installed.
 
 ## Infobar
