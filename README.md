@@ -12,10 +12,12 @@ Makes Claude Code calm and friendly for people who aren't technical. While Claud
 
 ## Tools (toolbox)
 
-One panel for everything: switch the model and effort with one click, turn each mod on or off, and run quick actions (`/compact`, `/clear`).
+One panel for everything: turn each mod on or off, run quick actions (`/compact`, `/clear`), and in the terminal switch the model and effort with one click.
 
-- It opens as a framed box right above the prompt. Open or close it by clicking **◆ Tools ▲** at the right of the Infobar, or type `/toolbox`; ✕ closes it too.
-- Clean View, Infobar, Prompt Upgrade and Clean Info Agents each get an on/off row under MODS once they are installed.
+- It opens right above the prompt. Open or close it by clicking **◆ Tools ▲** at the right of the Infobar, or type `/toolbox`; in the terminal ✕ closes it too.
+- Clean View, Infobar, Prompt Upgrade and Clean Info Agents each get a row under MODS once they are installed: a green dot while on, an empty ring while off. Click the name to turn it on or off; rest the pointer on it to see what it does.
+- Desktop app: everything sits on one row above the Infobar (MODS and QUICK each on their own row when the window is narrow). The app shows the model and effort itself, so they are left out. With the Infobar off, Tools draws its own **∧ Tools** button, so it is never out of reach.
+- Terminal: a list with the model and effort at the top; when it is taller than the room above the prompt it scrolls under its header, with ▲ and ▼.
 
 ## Infobar
 
