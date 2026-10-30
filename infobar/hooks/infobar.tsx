@@ -27,8 +27,11 @@ const DIVIDER_PX = 20
 const DIVIDER_SVG =
   `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="${DIVIDER_PX}" viewBox="0 0 1 ${DIVIDER_PX}" preserveAspectRatio="none">` +
   `<rect width="1" height="${DIVIDER_PX}" fill="rgba(128,128,128,0.45)"/></svg>`
-/** A thin upward chevron, drawn as text so it sits inside the Tools button. */
+/** A thin chevron, drawn as text so it sits inside the Tools button: up while Tools is closed, down while open. */
 const DESKTOP_CHEVRON = '∧'
+const DESKTOP_CHEVRON_OPEN = '∨'
+/** Whether the Tools box is open: the Toolbox's own value, read so the chevron follows it. */
+const toolboxOpenRef = { plugin: 'toolbox', key: 'isOpen' } as const
 /** A git branch mark: two dots joined by a line. */
 const BRANCH_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(150,150,150,1)" stroke-width="1.2" stroke-linecap="round"><circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="4" r="1.5"/><path d="M3 4v4M9 5.5c0 2-6 1-6 2.5"/></svg>'
@@ -404,7 +407,7 @@ async function drawTerminal($: Engine, e: Site, columns: number, isWorking: bool
   )
 }
 
-/** The desktop app: git from the left edge to the first right part; usage, agents and Tools anchored right. */
+/** The desktop app: Tools at the left edge, under its menu; the git branch takes the free room; agents, then usage, at the right. */
 async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderChildren> {
   const { Box, Text, Button, Svg } = $.ui.resolve(e as RenderInput<'AbovePrompt'> & { surface: 'desktop' })
   const info = await collect($)
@@ -464,32 +467,38 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
   const shownRight = right.filter(p => kept.has(p))
 
   const row: RenderChildren[] = []
-  row.push(
-    <Box flexGrow={1} flexShrink={1} overflow="hidden" paddingX={1}>
-      {gitPart !== null && kept.has(gitPart) ? gitPart.node : null}
-    </Box>,
-  )
-  shownRight.forEach(part => {
-    row.push(divider())
-    row.push(
-      <Box flexShrink={0} paddingX={1}>
-        {part.node}
-      </Box>,
-    )
-  })
   if (info.showTools) {
-    row.push(divider())
+    const isToolsOpen = (await $.state.get(toolboxOpenRef as never)).value === true
     row.push(
       // One Button holds the label and the chevron, so a click anywhere on the part opens Tools.
       // A Button may hold only text, so the chevron is a thin glyph here, not a picture.
       <Box flexShrink={0} paddingX={1}>
         <Button key="open-tools" plain onPress={() => undefined}>
-          <Text>{DESKTOP_TOOLS} </Text>
-          <Text dimColor>{DESKTOP_CHEVRON}</Text>
+          <Text dimColor>{isToolsOpen ? DESKTOP_CHEVRON_OPEN : DESKTOP_CHEVRON} </Text>
+          <Text>{DESKTOP_TOOLS}</Text>
         </Button>
       </Box>,
     )
   }
+  // After Tools the git branch takes the free room; then the agents, and the usage bars last.
+  // Outside a git repository an empty part keeps that room, so the rest stays at the right.
+  if (row.length > 0) row.push(divider())
+  row.push(
+    <Box flexGrow={1} flexShrink={1} overflow="hidden" paddingX={1}>
+      {gitPart !== null && kept.has(gitPart) ? gitPart.node : null}
+    </Box>,
+  )
+  shownRight
+    .slice()
+    .reverse()
+    .forEach(part => {
+      row.push(divider())
+      row.push(
+        <Box flexShrink={0} paddingX={1}>
+          {part.node}
+        </Box>,
+      )
+    })
 
   return (
     <Box flexDirection="row" alignItems="center" width="100%" paddingX={1} paddingY={BAR_PAD_Y}>
