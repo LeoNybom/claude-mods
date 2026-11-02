@@ -1,7 +1,7 @@
 {
   "name": "leonybom-mods",
   "owner": { "name": "LeoNybom" },
-  "description": "Leo's mods for Claude Code: Tools, Infobar, Prompt Upgrade and Clean Info Agents.",
+  "description": "Leo's mods for Claude Code: Tools, Infobar, Prompt Upgrade and Thinkbar.",
   "plugins": [
     {
       "name": "toolbox",
@@ -19,9 +19,9 @@
       "description": "Prompt Upgrade: turns a rough prompt into a great one in a pane, with a few quick questions, before anything is sent."
     },
     {
-      "name": "clean-info-agents",
-      "source": "./clean-info-agents",
-      "description": "Clean Info Agents: /savvy-flow plans and hands work to five tiered agents, with a progress bar above the Infobar and a live panel of every agent."
+      "name": "thinkbar",
+      "source": "./thinkbar",
+      "description": "Thinkbar: a purple progress bar above the prompt that shows how far Claude has come on each prompt."
     }
   ]
 }

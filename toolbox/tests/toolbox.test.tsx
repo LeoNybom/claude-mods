@@ -203,18 +203,18 @@ test('the box shows mods and quick actions, model and effort in the terminal onl
   await ui.unmount()
 })
 
-test('Clean Info Agents gets a row once it has written its value, its name the switch', async ($, on) => {
+test('Thinkbar gets a row once it has written its value, its name the switch', async ($, on) => {
   engine(on, { configSets: [], commands: [] })
-  // Clean Info Agents is installed and off; the other mods are not installed.
+  // Thinkbar is installed and off; the other mods are not installed.
   on('state.get', (_$, e, next) =>
-    ((e as { plugin: string }).plugin === 'clean-info-agents' ? { value: { value: false, version: 1 } } : next(e)) as never,
+    ((e as { plugin: string }).plugin === 'thinkbar' ? { value: { value: false, version: 1 } } : next(e)) as never,
   )
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await $.command.run({ command: 'toolbox', args: '', ...RUN })
 
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /^Clean Info Agents$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Button', key: 'mod:clean-info-agents' })).toMatchObject({ props: { label: 'Clean Info Agents', dimColor: true } })
+  expect(await ui.find({ type: 'Text', text: /^Thinkbar$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'mod:thinkbar' })).toMatchObject({ props: { label: 'Thinkbar', dimColor: true } })
   expect((await ui.findAll({ type: 'Text' })).some(t => t.text === '○' && t.props.color === 'inactive')).toBe(true)
   expect(await ui.find({ type: 'Text', text: /No mods installed yet/ })).toBeUndefined()
   await ui.unmount()

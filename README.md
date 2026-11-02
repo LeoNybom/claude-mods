@@ -7,7 +7,7 @@ Mods for Claude Code.
 One panel for everything: turn each mod on or off, run quick actions (`/compact`, `/clear`), and in the terminal switch the model and effort with one click.
 
 - It opens right above the prompt. Open or close it by clicking **◆ Tools ▲** at the right of the Infobar (in the desktop app **∧ Tools** at its left, pointing down while open), or type `/toolbox`; in the terminal ✕ closes it too.
-- Infobar, Prompt Upgrade and Clean Info Agents each get a row under MODS once they are installed: a green dot while on, an empty ring while off. Click the name to turn it on or off; rest the pointer on it to see what it does.
+- Infobar, Prompt Upgrade and Thinkbar each get a row under MODS once they are installed: a green dot while on, an empty ring while off. Click the name to turn it on or off; rest the pointer on it to see what it does.
 - Desktop app: everything sits on one row above the Infobar (MODS and QUICK each on their own row when the window is narrow). The app shows the model and effort itself, so they are left out. With the Infobar off, Tools draws its own **∧ Tools** button, so it is never out of reach.
 - Terminal: a list with the model and effort at the top; when it is taller than the room above the prompt it scrolls under its header, with ▲ and ▼.
 
@@ -26,26 +26,15 @@ Turns a rough prompt into a great one before it is sent. A pane asks up to three
 - `/better history` shows your last 20 upgrades; click one to open its review again.
 - Cancel puts your original prompt back in the prompt box.
 
-## Clean Info Agents
+## Thinkbar
 
-Lets Claude plan a bigger task and hand the work to helper agents, while you watch it happen. Based on savvy-flow and savvy-progress from [claude-kit](https://github.com/JohnnyVizz/claude-kit) by johnnyvizz (MIT, see [LICENSE-claude-kit](clean-info-agents/LICENSE-claude-kit)).
+A purple progress bar right above the prompt, above the Infobar and the other mods, that shows how far Claude has come on each prompt.
 
-- `/cia <task>` (or `/clean-info-agents:savvy-flow <task>`): Claude plans, decides the design, hands each task to the cheapest agent that gets it right, and checks what comes back.
-  - Example: `/cia add a dark mode toggle to the settings page`
-- Five agents, each a plain file in `clean-info-agents/agents/` that you can change (model, effort, rules):
-
-  | Agent | Model / effort | For |
-  | --- | --- | --- |
-  | `savvy-fable` | Fable / high | the hardest logic and bugs |
-  | `savvy-heavy` | Opus / xhigh | unfamiliar code, unclear cause |
-  | `savvy-careful` | Opus / high | delicate but clear changes |
-  | `savvy-medium` | Opus / medium | standard feature work |
-  | `savvy-light` | Opus / low | mechanical edits, builds, tests |
-
-- A progress bar shows the plan, the phase and how many tasks are done. In the desktop app it sits right above the Infobar; in the terminal it sits under the prompt right above the Infobar (above the prompt when the Infobar is off), in your terminal theme's colors.
-- An agents panel shows every agent: running, finished and planned, with model, effort, context, cost and time. Click `×N` on the bar or type `/agents-info` to show or hide it; `/agents-info open` opens it.
-- Turn it on or off from the Tools box, or type `/agents-info on` or `/agents-info off`. Off, the bar is hidden and the panel no longer opens by itself.
-- Panel language (`auto`, `en`, `ru`, `he`) and when the panel opens by itself (`savvy` or `any`) are set in `/config`.
+- It appears when you send a prompt and fills in as Claude works. The word at its left says what Claude is doing: Thinking, Reading, Editing, Running or Delegating.
+- When Claude keeps a task list, the bar follows it (`step 2 of 4`, with a tick per step). Otherwise it is an estimate: Claude can't know in advance how long it will take, so each step moves the bar on a little less, and it waits under 90% until the answer.
+- At the answer the bar turns green and says Done, then leaves after a few seconds. An interrupted prompt turns gray and says Stopped.
+- Desktop app: a dotted pixel fill, a small turning star while Claude works and a check when it's done. Terminal: block characters in your terminal theme's colors.
+- Turn it on or off from its row in the Tools box.
 
 ## Install
 
@@ -55,7 +44,7 @@ At the prompt of a Claude Code terminal session, one line per mod:
 /plugin install toolbox --marketplace LeoNybom/claude-mods
 /plugin install infobar --marketplace LeoNybom/claude-mods
 /plugin install prompt-upgrade --marketplace LeoNybom/claude-mods
-/plugin install clean-info-agents --marketplace LeoNybom/claude-mods
+/plugin install thinkbar --marketplace LeoNybom/claude-mods
 ```
 
 Answer `y` to add the marketplace the first time, then press Enter to choose the user scope (all projects).
@@ -66,7 +55,7 @@ From a shell:
 claude plugin install toolbox --marketplace LeoNybom/claude-mods
 claude plugin install infobar --marketplace LeoNybom/claude-mods
 claude plugin install prompt-upgrade --marketplace LeoNybom/claude-mods
-claude plugin install clean-info-agents --marketplace LeoNybom/claude-mods
+claude plugin install thinkbar --marketplace LeoNybom/claude-mods
 ```
 
 In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `LeoNybom/claude-mods`, then Add plugin.
@@ -78,7 +67,7 @@ claude plugin marketplace update leonybom-mods
 claude plugin update toolbox@leonybom-mods
 claude plugin update infobar@leonybom-mods
 claude plugin update prompt-upgrade@leonybom-mods
-claude plugin update clean-info-agents@leonybom-mods
+claude plugin update thinkbar@leonybom-mods
 ```
 
 Then type `/reload-plugins` in a running session, or start a new one.

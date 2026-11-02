@@ -9,6 +9,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## toolbox
 
+### 0.5.0
+- The MODS row for Clean Info Agents is now a row for Thinkbar.
+
 ### 0.4.0
 - No frame and no orange: the box sits on the band's own background.
 - Mods: the name is the switch (no On/Off buttons), with a green dot while on and an empty ring of the same size while off; rest the pointer on a mod to see what it does. Clearer descriptions.
@@ -86,7 +89,15 @@ claude plugin update <mod>@leonybom-mods
 ### 0.1.0
 - First version: `/better` turns a rough prompt into a great one, with questions, a rewrite and a side-by-side review.
 
-## clean-info-agents
+## thinkbar
+
+### 0.1.0
+- First version: a purple progress bar above the prompt and the other mods, from the moment a prompt is sent until the answer. It shows what Claude is doing, follows Claude's task list when there is one, and turns green at the answer. Replaces the progress bar of Clean Info Agents, without the crabs.
+- An on/off row in the Tools box.
+
+## clean-info-agents (removed)
+
+Removed from the marketplace. Its progress bar lives on as Thinkbar.
 
 ### 0.2.0
 - `/cia <task>` starts savvy-flow, a short name for `/clean-info-agents:savvy-flow`.
