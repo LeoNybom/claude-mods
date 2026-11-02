@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { barText, estimate, listOf, phaseOf } from '../hooks/thinkbar'
+import { barText, creep, estimate, listOf, phaseOf } from '../hooks/thinkbar'
 import type { Run } from '../types'
 
 const PLUGIN = 'thinkbar'
@@ -102,6 +102,39 @@ test("a subagent's tool calls don't move the bar", async ($, on) => {
 
 
 const run = (over: Partial<Run> = {}): Run => ({ turnId: 't', phase: 'thinking', steps: 0, total: 0, done: 0, ratio: 0, isFinished: false, ...over })
+
+test('between events the bar creeps on, slower and slower, never to its ceiling', () => {
+  let r = run({ ratio: 0.04 })
+  r = creep(r)
+  expect(r.ratio).toBeGreaterThan(0.04)
+  for (let i = 0; i < 3600; i++) r = creep(r)
+  expect(r.ratio).toBeLessThan(0.9)
+  expect(r.ratio).toBeGreaterThan(0.85)
+  // With a task list it stays under the next step.
+  let listed = run({ total: 4, done: 1, ratio: 0.2375 })
+  for (let i = 0; i < 3600; i++) listed = creep(listed)
+  expect(listed.ratio).toBeLessThan(0.475)
+  expect(creep(run({ isFinished: true, ratio: 1 })).ratio).toBe(1)
+})
+
+test('the bar moves while Claude thinks, and stops at the answer', async ($, on) => {
+  const clock = await session($, on)
+  const shown = async () => {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...BAND })
+    const alt = String(((await ui.find({ type: 'Svg' }))?.props as { alt?: string }).alt)
+    await ui.unmount()
+    return Number(/(\d+)%$/.exec(alt)?.[1])
+  }
+  await start($)
+  expect(await shown()).toBe(4)
+  await clock.advance(20_000)
+  const moved = await shown()
+  expect(moved).toBeGreaterThan(4)
+  expect(moved).toBeLessThan(30)
+  await complete($, 'aborted')
+  await clock.advance(3000)
+  expect(await shown()).toBe(moved)
+})
 
 test('the estimate never goes back and waits under 90% for the answer', () => {
   expect(estimate(run({ ratio: 0.5, phase: 'reading' }))).toBe(0.5)

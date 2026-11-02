@@ -102,6 +102,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## thinkbar
 
+### 0.3.0
+- Between events the bar creeps on by itself, slower the closer it gets: never past the next task-list step, and never past 90% until the answer.
+
 ### 0.2.0
 - Desktop app: the bar stays above the Tools box when it is open (its row is keyed `top:thinkbar`), with a thin line under it like the one under the Tools box.
 - Desktop app: the row is centered; its dot sits centered on the M of MODS and its star over the Infobar's last %, where the lines end.

@@ -94,6 +94,21 @@ export function estimate(r: Run): number {
   return Math.max(r.ratio, Math.min(r.total > 0 ? 0.95 : CAP, guess))
 }
 
+// Between events the bar creeps on by itself: every second it covers a small share of
+// what is left to its ceiling, so it slows down as it gets closer and never gets there.
+const CREEP_EVERY_MS = 1000
+const CREEP_SHARE = 1 / 120
+
+/** The bar one second later: closer to the ceiling (the next task-list step, or 90%), never past it. */
+export function creep(r: Run): Run {
+  if (r.isFinished) return r
+  const ceiling = r.total > 0 ? (Math.min(r.total, r.done + 1) / r.total) * 0.95 : CAP
+  if (r.ratio >= ceiling) return r
+  return { ...r, ratio: r.ratio + (ceiling - r.ratio) * CREEP_SHARE }
+}
+
+let creeper: { cancel(): void } | undefined
+
 const fresh = (turnId: string): Run => ({ turnId, phase: 'thinking', steps: 0, total: 0, done: 0, ratio: FLOOR.thinking, isFinished: false })
 
 const advance = (r: Run, change: Partial<Run>): Run => {
@@ -306,6 +321,10 @@ export function registerThinkbar(on: On): void {
     const result = await next(e)
     if (e.agentId !== undefined) return result
     await update($, runAtom, prev => (prev && !prev.isFinished ? prev : fresh(e.turnId)))
+    creeper?.cancel()
+    creeper = $.clock.every(CREEP_EVERY_MS, () => {
+      void update($, runAtom, r => (r ? creep(r) : r))
+    })
     return result
   })
 
@@ -334,6 +353,8 @@ export function registerThinkbar(on: On): void {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId !== undefined) return result
+    creeper?.cancel()
+    creeper = undefined
     const stopped = e.reason !== 'answer'
     const finished = await update($, runAtom, r =>
       r ? { ...r, isFinished: true, phase: stopped ? 'stopped' : 'done', ratio: stopped ? r.ratio : 1 } : r,
