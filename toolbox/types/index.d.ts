@@ -1,6 +1,6 @@
 /**
  * The Tools box above the prompt. A mod gets a row in it once it writes its
- * on/off value (Clean View: `cleanViewEnabled`, Infobar: `enabled`), and it
+ * on/off value (Infobar: `enabled`), and it
  * answers the press on its row (`{ plugin: 'toolbox', element: 'mod:<plugin>' }`).
  */
 export type ToolboxEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'

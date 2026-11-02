@@ -58,16 +58,14 @@ const DIVIDER_SVG =
 
 // The mods the panel knows. A mod shows up once it has written its on/off value;
 // it answers the press on its own row (`mod:<plugin>`) itself.
-const cleanViewRef = { plugin: 'clean-view', key: 'cleanViewEnabled' } as const
 const infobarRef = { plugin: 'infobar', key: 'enabled' } as const
 const promptUpgradeRef = { plugin: 'prompt-upgrade', key: 'auto' } as const
 const cleanInfoAgentsRef = { plugin: 'clean-info-agents', key: 'enabled' } as const
 
-type ModName = 'clean-view' | 'infobar' | 'prompt-upgrade' | 'clean-info-agents'
+type ModName = 'infobar' | 'prompt-upgrade' | 'clean-info-agents'
 
 /** Each mod with what it does, shown while the pointer rests on it. */
 const MODS: readonly { plugin: ModName; name: string; about: string }[] = [
-  { plugin: 'clean-view', name: 'Clean View', about: 'Hides tool calls and shows a simple checklist of the plan' },
   { plugin: 'infobar', name: 'Infobar', about: 'Context, usage limits, agents and git branch at a glance' },
   { plugin: 'prompt-upgrade', name: 'Prompt Upgrade', about: "Turns a rough prompt into a clear one before it's sent" },
   { plugin: 'clean-info-agents', name: 'Clean Info Agents', about: 'A progress bar and a panel for the agents at work' },
@@ -145,13 +143,11 @@ async function runQuick($: Engine, command: string): Promise<void> {
 
 async function readFlag($: Engine, which: ModName): Promise<boolean | undefined> {
   const held =
-    which === 'clean-view'
-      ? await $.state.get(cleanViewRef)
-      : which === 'infobar'
-        ? await $.state.get(infobarRef)
-        : which === 'prompt-upgrade'
-          ? await $.state.get(promptUpgradeRef)
-          : await $.state.get(cleanInfoAgentsRef)
+    which === 'infobar'
+      ? await $.state.get(infobarRef)
+      : which === 'prompt-upgrade'
+        ? await $.state.get(promptUpgradeRef)
+        : await $.state.get(cleanInfoAgentsRef)
   return typeof held.value === 'boolean' ? held.value : undefined
 }
 

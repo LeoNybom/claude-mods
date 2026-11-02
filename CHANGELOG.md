@@ -7,16 +7,6 @@ claude plugin marketplace update leonybom-mods
 claude plugin update <mod>@leonybom-mods
 ```
 
-## clean-view
-
-### 0.2.0
-- Adds an on/off row to the Tools box, and hides its own button when Tools is installed.
-- Shares the band above the prompt with Tools and the Infobar.
-- The progress meter sits right after the step names instead of at the far right.
-
-### 0.1.0
-- First version: hides tool rows and shows one simple checklist above the prompt.
-
 ## toolbox
 
 ### 0.4.0
@@ -25,6 +15,9 @@ claude plugin update <mod>@leonybom-mods
 - Desktop app: everything on one row above the Infobar, with a line between MODS and QUICK; on a narrow window each takes its own row, its title first. No model and effort (the app shows them), no header and no ✕.
 - Desktop app: with the Infobar off, Tools draws its own ∧ Tools button (∨ while open), so turning the Infobar off never locks you out.
 - Terminal: the list scrolls under its header when the room above the prompt is short, with ▲ and ▼ and a scrollbar.
+
+### 0.3.1
+- The Clean View row is gone, since Clean View is no longer part of this marketplace.
 
 ### 0.3.0
 - Adds a row for Clean Info Agents, with a wider name column so its name fits.
