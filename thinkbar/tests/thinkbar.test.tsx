@@ -8,7 +8,11 @@ import type { Run } from '../types'
 const PLUGIN = 'thinkbar'
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 100 } as never } as const
 
+// What the model streams in each step of a test.
+let streamed: unknown[] = []
+
 async function session($: Engine, on: On, stored: Record<string, unknown> = {}) {
+  streamed = []
   const clock = mock.clock(on, { now: Date.parse('2026-11-02T10:00:00Z') })
   on('session.start', () => ({ cwd: '/repo' }) as never)
   on('turn.start', (_$, e) => ({ turnId: (e as { turnId: string }).turnId }) as never)
@@ -19,6 +23,7 @@ async function session($: Engine, on: On, stored: Record<string, unknown> = {}) 
   on('ui.press', () => ({}) as never)
   on('ui.toast', () => ({ value: undefined }) as never)
   on('turn.step', async function* () {
+    for (const chunk of streamed) yield chunk as never
     return { turnId: 't1', index: 0, answer: '', toolUses: [], stopReason: 'tool_use', usage: null } as never
   })
   await $.session.start({ source: 'startup', cwd: '/repo', surface: 'terminal', isInteractive: true } as never)
@@ -91,6 +96,36 @@ test('the answer fills the bar, and it leaves a few seconds later', async ($, on
   await ui.unmount()
 })
 
+test('writing the answer moves the bar by the text streamed, up to 95%', () => {
+  const writing = run({ phase: 'writing', ratio: 0.04 })
+  // A short line before a tool call barely moves it; a long answer takes it far.
+  expect(creep(writing, 100).ratio).toBeLessThan(0.15)
+  const long = creep(creep(writing, 1500), 1500)
+  expect(long.ratio).toBeGreaterThan(0.8)
+  expect(long.ratio).toBeLessThan(0.95)
+  // While thinking, text streamed does nothing and the ceiling is a third.
+  expect(creep(run({ ratio: 0.04 }), 1500).ratio).toBeLessThan(0.06)
+  // With steps still to come it stays under the next one.
+  expect(creep(run({ phase: 'writing', total: 3, done: 0, ratio: 0.04, listBase: 0.04 }), 5000).ratio).toBeLessThan(0.35)
+})
+
+test('the bar says Writing while the answer streams', async ($, on) => {
+  await session($, on)
+  await start($)
+  streamed = [{ kind: 'thinking', index: 0, text: 'hmm' }]
+  await step($)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+  expect(await ui.find({ type: 'Text', text: /Thinking/ })).toBeDefined()
+  streamed = [{ kind: 'thinking', index: 0, text: 'hmm' }, { kind: 'text', index: 1, text: 'Here is' }, { kind: 'text', index: 1, text: ' the answer' }]
+  await step($)
+  expect(await ui.find({ type: 'Text', text: /Writing/ })).toBeDefined()
+  // A line, then a tool call: the bar leaves Writing as the call starts.
+  streamed = [{ kind: 'text', index: 0, text: 'Let me check.' }, { kind: 'tool', index: 1, id: 'tu1', name: 'Grep' }]
+  await step($)
+  expect(await ui.find({ type: 'Text', text: /Reading/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test("a subagent's tool calls don't move the bar", async ($, on) => {
   await session($, on)
   await start($)
@@ -108,13 +143,52 @@ test('between events the bar creeps on, slower and slower, never to its ceiling'
   r = creep(r)
   expect(r.ratio).toBeGreaterThan(0.04)
   for (let i = 0; i < 3600; i++) r = creep(r)
-  expect(r.ratio).toBeLessThan(0.9)
-  expect(r.ratio).toBeGreaterThan(0.85)
+  expect(r.ratio).toBeLessThan(1 / 3)
+  expect(r.ratio).toBeGreaterThan(0.3)
   // With a task list it stays under the next step.
   let listed = run({ total: 4, done: 1, ratio: 0.2375 })
   for (let i = 0; i < 3600; i++) listed = creep(listed)
   expect(listed.ratio).toBeLessThan(0.475)
   expect(creep(run({ isFinished: true, ratio: 1 })).ratio).toBe(1)
+  // A list made late starts from where the bar is, and still moves.
+  expect(creep(run({ total: 4, done: 0, ratio: 0.6, listBase: 0.6 })).ratio).toBeGreaterThan(0.6)
+})
+
+test('a task list that comes late shares the rest of the bar evenly, with a jump at each step', async ($, on) => {
+  const clock = await session($, on)
+  await start($)
+  await $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...BAND })
+  const percent = async () => Number(/(\d+)%$/.exec(String(((await ui.find({ type: 'Svg' }))?.props as { alt?: string }).alt))?.[1])
+  const todos = (done: number) => ({ tool: 'TodoWrite', todos: [0, 1, 2].map(i => ({ status: i < done ? 'completed' : 'pending' })) }) as never
+  await $.tool.call(todos(0))
+  const atStart = await percent()
+  expect(atStart).toBe(25)
+  await clock.advance(5000)
+  const creptInStep1 = await percent()
+  expect(creptInStep1).toBeGreaterThan(atStart)
+  await $.tool.call(todos(1))
+  // Each step is a third of what was left: 25% + 70% / 3.
+  expect(await percent()).toBe(48)
+  await $.tool.call(todos(2))
+  expect(await percent()).toBe(72)
+  await ui.unmount()
+})
+
+test('with a task list the bar keeps creeping while Claude runs commands', async ($, on) => {
+  const clock = await session($, on)
+  await start($)
+  await $.tool.call({ tool: 'TodoWrite', todos: [{ status: 'in_progress' }, { status: 'pending' }, { status: 'pending' }, { status: 'pending' }] } as never)
+  await $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...BAND })
+  const percent = async () => Number(/(\d+)%$/.exec(String(((await ui.find({ type: 'Svg' }))?.props as { alt?: string }).alt))?.[1])
+  const before = await percent()
+  expect(before).toBeLessThan(24)
+  await clock.advance(10_000)
+  const after = await percent()
+  expect(after).toBeGreaterThan(before)
+  expect(after).toBeLessThan(24)
+  await ui.unmount()
 })
 
 test('the bar moves while Claude thinks, and stops at the answer', async ($, on) => {
@@ -136,9 +210,9 @@ test('the bar moves while Claude thinks, and stops at the answer', async ($, on)
   expect(await shown()).toBe(moved)
 })
 
-test('the estimate never goes back and waits under 90% for the answer', () => {
+test('the estimate never goes back and waits under a third for the answer, without a list', () => {
   expect(estimate(run({ ratio: 0.5, phase: 'reading' }))).toBe(0.5)
-  expect(estimate(run({ steps: 200, phase: 'running' }))).toBeLessThanOrEqual(0.9)
+  expect(estimate(run({ steps: 200, phase: 'running' }))).toBeLessThanOrEqual(1 / 3)
   expect(estimate(run({ isFinished: true }))).toBe(1)
   expect(estimate(run({ total: 4, done: 2 }))).toBe(0.475)
 })

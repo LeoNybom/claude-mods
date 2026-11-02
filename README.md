@@ -30,8 +30,8 @@ Turns a rough prompt into a great one before it is sent. A pane asks up to three
 
 A purple progress bar right above the prompt, above the Infobar and the other mods, that shows how far Claude has come on each prompt.
 
-- It appears when you send a prompt and fills in as Claude works. The word at its left says what Claude is doing: Thinking, Reading, Editing, Running or Delegating.
-- When Claude keeps a task list, the bar follows it (`step 2 of 4`, with a tick per step). Otherwise it is an estimate: Claude can't know in advance how long it will take, so each step moves the bar on a little less, and it waits under 90% until the answer.
+- It appears when you send a prompt and fills in as Claude works. The word at its left says what Claude is doing: Thinking, Reading, Editing, Running, Delegating or Writing (the answer).
+- When Claude keeps a task list, the bar follows it (`step 2 of 4`, with a tick per step). Otherwise it is an estimate: Claude can't know in advance how long it will take, so each step moves the bar on a little less, and it waits under a third until the answer. Between events the bar creeps on by itself, slower the closer it gets. A task list that comes later shares the rest of the bar evenly from where the bar is. While Claude writes its last answer, the text streamed fills the bar on toward 95%.
 - At the answer the bar turns green and says Done, then leaves after a few seconds. An interrupted prompt turns gray and says Stopped.
 - Desktop app: a dotted pixel fill, a small turning star while Claude works and a check when it's done. Terminal: block characters in your terminal theme's colors.
 - Turn it on or off from its row in the Tools box.
