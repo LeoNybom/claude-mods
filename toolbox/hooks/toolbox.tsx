@@ -33,12 +33,11 @@ const openAtom = atom({ plugin: 'toolbox', key: 'isOpen' } as const, false)
 
 // The mods the panel knows. A mod shows up once it has written its on/off value;
 // it answers the press on its own row (`mod:<plugin>`) itself.
-const cleanViewRef = { plugin: 'clean-view', key: 'cleanViewEnabled' } as const
 const infobarRef = { plugin: 'infobar', key: 'enabled' } as const
 const promptUpgradeRef = { plugin: 'prompt-upgrade', key: 'auto' } as const
 const cleanInfoAgentsRef = { plugin: 'clean-info-agents', key: 'enabled' } as const
 
-type ModName = 'clean-view' | 'infobar' | 'prompt-upgrade' | 'clean-info-agents'
+type ModName = 'infobar' | 'prompt-upgrade' | 'clean-info-agents'
 
 /** "claude-opus-5-5" → "Opus 5.5"; anything unknown is shown as given. */
 export function modelLabel(id: string): string {
@@ -86,13 +85,11 @@ async function runQuick($: Engine, command: string): Promise<void> {
 
 async function readFlag($: Engine, which: ModName): Promise<boolean | undefined> {
   const held =
-    which === 'clean-view'
-      ? await $.state.get(cleanViewRef)
-      : which === 'infobar'
-        ? await $.state.get(infobarRef)
-        : which === 'prompt-upgrade'
-          ? await $.state.get(promptUpgradeRef)
-          : await $.state.get(cleanInfoAgentsRef)
+    which === 'infobar'
+      ? await $.state.get(infobarRef)
+      : which === 'prompt-upgrade'
+        ? await $.state.get(promptUpgradeRef)
+        : await $.state.get(cleanInfoAgentsRef)
   return typeof held.value === 'boolean' ? held.value : undefined
 }
 
@@ -169,7 +166,6 @@ export function registerToolbox(on: On): void {
     )
 
     const mods: { plugin: ModName; name: string; about: string }[] = [
-      { plugin: 'clean-view', name: 'Clean View', about: 'simple checklist' },
       { plugin: 'infobar', name: 'Infobar', about: 'info bar under the prompt' },
       { plugin: 'prompt-upgrade', name: 'Prompt Upgrade', about: 'better prompts' },
       { plugin: 'clean-info-agents', name: 'Clean Info Agents', about: 'agent progress and panel' },

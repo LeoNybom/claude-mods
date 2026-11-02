@@ -1,13 +1,8 @@
 {
   "name": "leonybom-mods",
   "owner": { "name": "LeoNybom" },
-  "description": "Leo's mods for Claude Code: Clean View, Tools, Infobar, Prompt Upgrade and Clean Info Agents.",
+  "description": "Leo's mods for Claude Code: Tools, Infobar, Prompt Upgrade and Clean Info Agents.",
   "plugins": [
-    {
-      "name": "clean-view",
-      "source": "./clean-view",
-      "description": "A calm, friendly view: hides tool rows and shows one simple checklist of the plan above the prompt."
-    },
     {
       "name": "toolbox",
       "source": "./toolbox",
