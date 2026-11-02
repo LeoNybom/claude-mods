@@ -9,6 +9,12 @@ claude plugin update <mod>@leonybom-mods
 
 ## toolbox
 
+### 0.6.0
+- Desktop app: MODS and QUICK each get an equal half, with the line between them always in the middle.
+- Desktop app: when a section no longer fits on one row it breaks into columns that fill every row (three columns of two rows for six mods, never two and one), else one column. The line between the sections grows with the rows.
+- Desktop app: a thin line under the open menu, inset with its content and in the dividers' color, set where the closed bar's top edge is.
+- Desktop app: a mod's description shows on hover; the empty ring is exactly as large as the green dot.
+
 ### 0.5.0
 - The MODS row for Clean Info Agents is now a row for Thinkbar.
 

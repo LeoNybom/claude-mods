@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { modelLabel, scrollWindow } from '../hooks/toolbox'
+import { columnChoices, gridLayout, modelLabel, scrollWindow } from '../hooks/toolbox'
 
 const BAND = {
   plugin: 'toolbox',
@@ -106,6 +106,48 @@ test('in the app everything sits on one row, and a mod shows what it does under 
   // With the Infobar on, its Tools button opens the box, so the box draws none of its own.
   expect(await ui.find({ type: 'Button', key: 'open-tools' })).toBeUndefined()
   await ui.unmount()
+})
+
+test('each section takes the most columns that fit its half and fill every row, then they stack', () => {
+  // One row, then up to three columns where the rows come out full, then one column.
+  expect(columnChoices(3)).toEqual([3, 1])
+  expect(columnChoices(4)).toEqual([4, 2, 1])
+  expect(columnChoices(6)).toEqual([6, 3, 2, 1])
+  expect(columnChoices(2)).toEqual([2, 1])
+  expect(columnChoices(1)).toEqual([1])
+
+  const mods = [11, 18, 21] // three mods of these widths
+  const quick = [20, 20]
+  expect(gridLayout(mods, quick, 140)).toEqual({ isStacked: false, modColumns: 3, quickColumns: 2 })
+  // Three mods never split two and one: a column of three instead.
+  expect(gridLayout(mods, quick, 120)).toEqual({ isStacked: false, modColumns: 1, quickColumns: 2 })
+  expect(gridLayout(mods, quick, 80)).toEqual({ isStacked: false, modColumns: 1, quickColumns: 1 })
+  expect(gridLayout(mods, quick, 40).isStacked).toBe(true)
+  // Six mods, as more get added: three columns of two rows, beside QUICK on one row.
+  expect(gridLayout([...mods, 14, 16, 12], quick, 140)).toEqual({ isStacked: false, modColumns: 3, quickColumns: 2 })
+})
+
+test('in the app the line between the sections grows with the rows, and a line runs under the menu', async ($, on) => {
+  engine(on, { configSets: [], commands: [] })
+  // All three mods are installed and on.
+  on('state.get', (_$, e, next) =>
+    (['infobar', 'prompt-upgrade', 'thinkbar'].includes((e as { plugin: string }).plugin)
+      ? { value: { value: true, version: 1 } }
+      : next(e)) as never,
+  )
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'toolbox', args: '', ...RUN })
+
+  const height = async (bodyColumns: number) => {
+    const ui = await $.ui.mount({ ...BAND, props: { ...BAND.props, bodyColumns }, surface: 'desktop' })
+    const divider = (await ui.findAll({ type: 'Svg' })).find(s => s.props.alt === 'divider')
+    const underLine = (await ui.findAll({ type: 'Svg' })).some(s => s.props.alt === 'underline')
+    await ui.unmount()
+    return { height: divider?.props.height, underLine }
+  }
+  expect(await height(120)).toEqual({ height: 20, underLine: true })
+  expect(await height(95)).toEqual({ height: 60, underLine: true })
+  expect(await height(70)).toEqual({ height: 60, underLine: true })
 })
 
 test('in the app the sections share a row with a line between them, and stack without it when narrow', async ($, on) => {

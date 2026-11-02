@@ -45,16 +45,32 @@ const SECTION_GAP = 3
 const TITLE_COLUMNS = 10
 /** How many of the app's average characters fit in one cell of `bodyColumns`, as the Infobar counts. */
 const DESKTOP_CELL_RATIO = 1.2
-/** In the app, the line between the mods and QUICK: as tall as a row, in the Infobar's divider color. */
-const DIVIDER_PX = 20
+/** In the app, the most columns a section breaks into once its items no longer fit on one row. */
+const MAX_COLUMNS = 3
+/** In the app, cells between two columns of items. */
+const COLUMN_GAP = 2
+/** In the app, one row's height, which the line between the sections grows by. */
+const ROW_PX = 20
+/** In the app, the lines' color: the Infobar's dividers'. Both lines are pictures, so they match. */
+const LINE_COLOR = 'rgba(128,128,128,0.45)'
+/** In the app, the line under the menu: wider than any band, cut to the menu's width. */
+const UNDERLINE_PX = 4000
+const UNDERLINE_SVG =
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${UNDERLINE_PX}" height="1" viewBox="0 0 ${UNDERLINE_PX} 1" preserveAspectRatio="none">` +
+  `<rect width="${UNDERLINE_PX}" height="1" fill="${LINE_COLOR}"/></svg>`
+/** In the app, the line between the mods and QUICK, as tall as the rows it stands beside. */
+function dividerSvg(rows: number): string {
+  const px = rows * ROW_PX
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="${px}" viewBox="0 0 1 ${px}" preserveAspectRatio="none">` +
+    `<rect width="1" height="${px}" fill="${LINE_COLOR}"/></svg>`
+  )
+}
 /** In the app, a mod's dot: filled green while on, an empty gray ring of the same size while off. */
 const DOT_ON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#3fb950"/></svg>'
 const DOT_OFF_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.4" fill="none" stroke="rgba(150,150,150,1)" stroke-width="1.2"/></svg>'
-const DIVIDER_SVG =
-  `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="${DIVIDER_PX}" viewBox="0 0 1 ${DIVIDER_PX}" preserveAspectRatio="none">` +
-  `<rect width="1" height="${DIVIDER_PX}" fill="rgba(128,128,128,0.45)"/></svg>`
+  '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.5" fill="none" stroke="rgba(150,150,150,1)" stroke-width="1"/></svg>'
 
 // The mods the panel knows. A mod shows up once it has written its on/off value;
 // it answers the press on its own row (`mod:<plugin>`) itself.
@@ -93,6 +109,44 @@ export function scrollWindow(listRows: number, room: number, offset: number, tra
   const thumbRows = last === 0 ? trackRows : Math.max(1, Math.round((trackRows * windowRows) / listRows))
   const thumbAt = last === 0 ? 0 : Math.round((at / last) * (trackRows - thumbRows))
   return { windowRows, offset: at, scrolls: last > 0, thumbAt, thumbRows }
+}
+
+/**
+ * The column counts a section of `count` items may take, widest first: all on one row, then
+ * MAX_COLUMNS or fewer where every row comes out full (six mods: three columns of two rows;
+ * three mods: never two and one), and one column last.
+ */
+export function columnChoices(count: number): number[] {
+  const choices = [Math.max(1, count)]
+  for (let c = Math.min(MAX_COLUMNS, count - 1); c > 1; c -= 1) if (count % c === 0) choices.push(c)
+  if (count > 1) choices.push(1)
+  return choices
+}
+
+/**
+ * How the app lays out MODS and QUICK, given each item's width in characters. Side by side, each
+ * section in its own half of `room` so the line between them stays in the middle, in the most
+ * columns that fit its half; else stacked, each in the most columns that fit `room`.
+ */
+export function gridLayout(modWidths: readonly number[], quickWidths: readonly number[], room: number) {
+  const half = Math.floor((room - 1 - SECTION_GAP * 2) / 2)
+  const sectionWidth = (title: string, widths: readonly number[], columns: number) => {
+    let sum = spaced(title).length + 2
+    for (let c = 0; c < columns; c += 1) {
+      sum += Math.max(...widths.filter((_, i) => i % columns === c)) + (c > 0 ? COLUMN_GAP : 0)
+    }
+    return sum
+  }
+  const most = (title: string, widths: readonly number[], space: number) =>
+    columnChoices(widths.length).find(columns => sectionWidth(title, widths, columns) <= space)
+  const modColumns = most('MODS', modWidths, half)
+  const quickColumns = most('QUICK', quickWidths, half)
+  if (modColumns !== undefined && quickColumns !== undefined) return { isStacked: false, modColumns, quickColumns }
+  return {
+    isStacked: true,
+    modColumns: most('MODS', modWidths, room) ?? 1,
+    quickColumns: most('QUICK', quickWidths, room) ?? 1,
+  }
 }
 
 /** Moves the list by `by` rows, inside its ends. */
@@ -258,67 +312,96 @@ export function registerToolbox(on: On): void {
       shownListRows = 0
       shownWindowRows = 0
       const { Svg } = $.ui.resolve(e as RenderInput<'AbovePrompt'> & { surface: 'desktop' })
-      // Both sections on one row with a line between them while they fit; else each on its own
-      // row with its title first, the titles in one column and no line. A title never wraps,
-      // and a section's items wrap under each other where even their own row is too narrow.
-      const needed =
-        spaced('MODS').length +
-        spaced('QUICK').length +
-        SECTION_GAP * 2 +
-        1 +
-        shown.reduce((sum, mod) => sum + 4 + mod.name.length, shown.length === 0 ? 22 : 0) +
-        QUICK.reduce((sum, q) => sum + 4 + q.label.length, 0)
-      const fitsOneRow = needed <= Math.round(e.props.bodyColumns * DESKTOP_CELL_RATIO) - 4
+      const modWidths = shown.length > 0 ? shown.map(mod => 4 + mod.name.length) : [22]
+      const quickWidths = QUICK.map(q => 4 + q.label.length)
+      const layout = gridLayout(modWidths, quickWidths, Math.round(e.props.bodyColumns * DESKTOP_CELL_RATIO) - 4)
+      // Rows each section takes: its items fill full rows of its columns.
+      const modHeight = Math.ceil(modWidths.length / layout.modColumns)
+      const quickHeight = Math.ceil(quickWidths.length / layout.quickColumns)
+      const tallest = Math.max(modHeight, quickHeight)
+
+      // Rows under a mod before the line under the menu: the rest of its section's rows, and the
+      // rows the taller QUICK has beyond them, or all of QUICK's when stacked under the mods.
+      const rowsBelow = (i: number) => {
+        const row = Math.floor(i / layout.modColumns)
+        return (layout.isStacked ? modHeight + quickHeight : tallest) - 1 - row
+      }
 
       // Each mod is a hover scope holding its description, hidden until the pointer rests on the
-      // mod and then drawn in the free row under the sections (one row down, or two when stacked).
+      // mod and then drawn just under the line under the menu, as a small label over the Infobar.
       const modItems =
         shown.length > 0
-          ? shown.map(mod => (
+          ? shown.map((mod, i) => (
               <Box key={`mod-row:${mod.plugin}`} flexDirection="row" alignItems="center" gap={1}>
                 {dot(mod.isOn)}
                 {nameButton(mod)}
                 <Box
                   position="absolute"
                   left={0}
-                  top={fitsOneRow ? 1 : 2}
+                  top={rowsBelow(i) + 1}
                   display="none"
                   hover={{ display: 'flex' }}
+                  backgroundColor="promptBorder"
+                  paddingX={1}
                 >
                   <Text dimColor>{mod.about}</Text>
                 </Box>
               </Box>
             ))
           : [<Text dimColor>No mods installed yet</Text>]
-      const section = (title: string, items: RenderChildren[]) => (
-        <Box flexDirection="row" alignItems="center" gap={2}>
-          <Box flexShrink={0} width={fitsOneRow ? undefined : TITLE_COLUMNS}>
-            <Text dimColor>{spaced(title)}</Text>
-          </Box>
-          <Box flexDirection="row" flexShrink={1} flexWrap="wrap" alignItems="center" columnGap={2}>
-            {items}
-          </Box>
-        </Box>
-      )
 
-      // The row under the sections is where a mod's description shows, and otherwise the room
-      // above the Infobar.
+      // Items fill full rows, left to right, then the next row, in aligned columns. Side by side
+      // each section takes an equal half (width 0, grown), so the line between them stays in the
+      // middle: the mods fill the left half, QUICK the right.
+      const section = (title: string, items: RenderChildren[], columns: number) => {
+        return (
+          <Box
+            flexDirection="row"
+            alignItems="flex-start"
+            gap={2}
+            flexGrow={layout.isStacked ? 0 : 1}
+            flexShrink={1}
+            width={layout.isStacked ? undefined : 0}
+            overflow="hidden"
+          >
+            <Box flexShrink={0} width={layout.isStacked ? TITLE_COLUMNS : undefined}>
+              <Text dimColor>{spaced(title)}</Text>
+            </Box>
+            <Box flexDirection="row" alignItems="flex-start" columnGap={COLUMN_GAP}>
+              {Array.from({ length: columns }, (_, c) => (
+                <Box flexDirection="column">{items.filter((_, i) => i % columns === c)}</Box>
+              ))}
+            </Box>
+          </Box>
+        )
+      }
+
       return withRest(
         <Box flexDirection="column" paddingX={2}>
-          {fitsOneRow ? (
-            <Box flexDirection="row" alignItems="center" columnGap={SECTION_GAP}>
-              {section('MODS', modItems)}
-              {/* A thin line between the mods and QUICK, like the Infobar's dividers. */}
-              <Svg source={DIVIDER_SVG} alt="divider" width={1} height={DIVIDER_PX} />
-              {section('QUICK', QUICK.map(quickButton))}
+          {/* paddingBottom puts the line as far under the menu's text as the Infobar's text is under it. */}
+          <Box flexDirection="column" paddingBottom={1}>
+            {layout.isStacked ? (
+              <Box flexDirection="column">
+                {section('MODS', modItems, layout.modColumns)}
+                {section('QUICK', QUICK.map(quickButton), layout.quickColumns)}
+              </Box>
+            ) : (
+              <Box flexDirection="row" alignItems="flex-start" columnGap={SECTION_GAP}>
+                {section('MODS', modItems, layout.modColumns)}
+                {/* A thin line between the mods and QUICK, as tall as the rows beside it. */}
+                <Svg source={dividerSvg(tallest)} alt="divider" width={1} height={tallest * ROW_PX} />
+                {section('QUICK', QUICK.map(quickButton), layout.quickColumns)}
+              </Box>
+            )}
+            {/* A thin line under the menu, inset with its content, in the dividers' color, on the
+                bottom edge of the room under the last row. */}
+            <Box position="absolute" left={0} right={0} bottom={0} overflow="hidden">
+              <Svg source={UNDERLINE_SVG} alt="underline" width={UNDERLINE_PX} height={1} />
             </Box>
-          ) : (
-            <Box flexDirection="column">
-              {section('MODS', modItems)}
-              {section('QUICK', QUICK.map(quickButton))}
-            </Box>
-          )}
-          <Box height={1} />
+          </Box>
+          {/* Room under the line as deep as the band's own above the closed Infobar (half a row),
+              so the line sits where the closed bar's top edge is. */}
+          <Box height={0.5} />
         </Box>,
       )
     }
