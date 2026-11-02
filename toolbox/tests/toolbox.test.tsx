@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { columnChoices, gridLayout, modelLabel, scrollWindow, splitTop } from '../hooks/toolbox'
+import { columnChoices, gridLayout, modelLabel, scrollWindow, splitTop, terminalBoxWidth } from '../hooks/toolbox'
 
 const BAND = {
   plugin: 'toolbox',
@@ -54,6 +54,14 @@ test('model ids read as friendly names', () => {
   expect(modelLabel('claude-opus-5-5')).toBe('Opus 5.5')
   expect(modelLabel('claude-haiku-5-5')).toBe('Haiku 5.5')
   expect(modelLabel('something-else')).toBe('something-else')
+})
+
+test('the terminal box is half the prompt, never narrower than the MODEL row', () => {
+  // The MODEL row with all four models takes 63 cells, the frame and its room 4 more.
+  expect(terminalBoxWidth(200, false)).toBe(100)
+  expect(terminalBoxWidth(100, false)).toBe(67)
+  expect(terminalBoxWidth(100, true)).toBe(70)
+  expect(terminalBoxWidth(60, false)).toBe(60)
 })
 
 test('the window over the list stays inside it, and the thumb follows', () => {
@@ -249,7 +257,11 @@ test('the box shows mods and quick actions, model and effort in the terminal onl
   await ui.press({ key: 'effort:high' })
   expect(log.commands).toContain('effort high')
   expect(await ui.find({ type: 'Button', key: 'effort:high' })).toMatchObject({ props: { variant: 'primary' } })
-  expect(await ui.find({ type: 'Text', text: /Haiku 5\.5 · High/ })).toBeDefined()
+  // The header no longer repeats the model and effort; its Close button is a framed, lit button.
+  expect(await ui.find({ type: 'Text', text: /Haiku 5\.5 · High/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Button', key: 'close' })).toMatchObject({
+    props: { label: '✕ Close', variant: 'primary' },
+  })
   await ui.press({ key: 'quick:compact' })
   expect(log.commands).toContain('compact')
   expect(await ui.find({ type: 'Text', text: /T O O L S/ })).toBeUndefined()
