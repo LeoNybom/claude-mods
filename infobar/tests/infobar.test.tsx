@@ -248,6 +248,34 @@ test('the whole Tools part is one button: label and chevron press the same thing
   await desk.unmount()
 })
 
+test('the Tools chevron points down while the Tools box is open', async ($, on) => {
+  engine(on)
+  on('state.get', { plugin: 'toolbox' } as never, () => ({ value: { value: true, version: 1 } }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const desk = await $.ui.mount(DESKTOP)
+  const tools = await desk.find({ type: 'Button', key: 'open-tools' })
+  expect(tools?.text).toContain('∨')
+  expect(tools?.text).not.toContain('∧')
+  await desk.unmount()
+})
+
+test('the desktop order: ∧ Tools, the git branch, the agents, then the usage bars', async ($, on) => {
+  engine(on, { git: DIRTY })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const desk = await $.ui.mount(DESKTOP)
+  expect((await desk.find({ type: 'Button', key: 'open-tools' }))?.text.trim()).toMatch(/^∧\s*Tools$/)
+  const all = (await desk.findAll({ type: 'Text' })).map(t => t.text ?? '')
+  await desk.unmount()
+  const tools = all.findIndex(t => /Tools/.test(t))
+  const git = all.findIndex(t => /feature\/git/.test(t))
+  const agents = all.findIndex(t => /agents/.test(t))
+  const ctx = all.findIndex(t => t === 'ctx')
+  expect(tools).toBeGreaterThanOrEqual(0)
+  expect(tools).toBeLessThan(git)
+  expect(git).toBeLessThan(agents)
+  expect(agents).toBeLessThan(ctx)
+})
+
 test('terminal: a row another mod draws under the prompt stays right above the bar', async ($, on) => {
   engine(on, { beneath: 'row' })
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })

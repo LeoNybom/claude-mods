@@ -34,6 +34,10 @@ claude plugin update <mod>@leonybom-mods
 
 ## infobar
 
+### 0.5.0
+- Desktop app: a new order. Tools sits at the left edge, right under the box it opens, with its chevron first (∧ Tools). The git branch comes next and takes the free room, then the agents, and the usage bars last at the right.
+- Desktop app: the chevron points down (∨ Tools) while the Tools box is open.
+
 ### 0.4.4
 - Desktop app: no frame around the bar. The band's own background is the bar, as wide and as tall as the empty prompt box (44 px), and the dividers run the height of the row.
 
