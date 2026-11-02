@@ -36,6 +36,26 @@ const offsetAtom = atom({ plugin: 'toolbox', key: 'offset' } as const, 0)
 const TERMINAL_HEADER_ROWS = 2
 /** Rows left for what the band shows under the list, the room above QUICK and the room under the list. */
 const KEPT_ROWS = 4
+/** In the terminal, the cells a Button adds around its label: `[ ` and ` ]`. */
+const BUTTON_CHROME = 4
+/** In the terminal, the cells the box adds around its rows: the frame and one cell of room each side. */
+const BOX_CHROME = 4
+/** In the terminal, the cells the scrollbar takes at the right while the list scrolls. */
+const SCROLLBAR_COLUMNS = 3
+/** In the terminal, the width of the MODEL and EFFORT labels, and the gap after them. */
+const LABEL_COLUMNS = 7
+
+/**
+ * In the terminal, how wide the box is: half the prompt's width, never narrower than the
+ * MODEL row with every model on it, never wider than the band.
+ */
+export function terminalBoxWidth(bodyColumns: number, scrolls: boolean): number {
+  const buttons = MODELS.reduce((sum, m) => sum + m.label.length + BUTTON_CHROME, 0)
+  const modelRow = LABEL_COLUMNS + 1 + buttons + MODELS.length - 1
+  const least = modelRow + BOX_CHROME + (scrolls ? SCROLLBAR_COLUMNS : 0)
+  return Math.min(bodyColumns, Math.max(least, Math.floor(bodyColumns / 2)))
+}
+
 /** The fewest list rows the terminal shows, however short the band is. */
 const MIN_LIST_ROWS = 3
 /** In the terminal, where a mod's description shows while the pointer rests on its row: cells from the row's left edge. */
@@ -434,13 +454,11 @@ export function registerToolbox(on: On): void {
       )
     }
 
-    // The terminal: a list under a header with the model, effort and a ✕, scrolled by itself
-    // when the band is short.
+    // The terminal: a framed box with a list under a header and a Close button, scrolled by
+    // itself when the band is short.
     await read($, revisionAtom)
     const modelId = await $.session.model()
     const effort = await read($, effortAtom)
-    const effortLabel = EFFORTS.find(x => x.level === effort)?.label
-    const status = effortLabel ? `${modelLabel(modelId)} · ${effortLabel}` : modelLabel(modelId)
 
     // A solid line across the list: one row tall, the overflow cut off, so it fills the
     // width without wrapping or an ellipsis.
@@ -451,7 +469,7 @@ export function registerToolbox(on: On): void {
     )
 
     const label = (text: string) => (
-      <Box width={7}>
+      <Box width={LABEL_COLUMNS}>
         <Text dimColor>{text}</Text>
       </Box>
     )
@@ -538,15 +556,21 @@ export function registerToolbox(on: On): void {
     ))
 
     return withRest(
-      <Box flexDirection="column" paddingX={2} marginBottom={1}>
+      <Box
+        flexDirection="column"
+        width={terminalBoxWidth(e.props.bodyColumns, win.scrolls)}
+        // At the right edge, straight above the Infobar's ◆ Tools ▲ that opens it.
+        alignSelf="flex-end"
+        borderStyle="round"
+        borderColor="claude"
+        paddingX={1}
+        marginBottom={1}
+      >
         <Box flexDirection="row" justifyContent="space-between" alignItems="center">
           <Text bold color="claude">
             ◆ {spaced(TITLE.toUpperCase())}
           </Text>
-          <Box flexDirection="row" gap={2} alignItems="center">
-            <Text dimColor>{status}</Text>
-            <Button key="close" label="✕" plain role="dismiss" onPress={() => close($)} />
-          </Box>
+          <Button key="close" label="✕ Close" variant="primary" role="dismiss" onPress={() => close($)} />
         </Box>
         {line('line-under-header')}
         {rows}
