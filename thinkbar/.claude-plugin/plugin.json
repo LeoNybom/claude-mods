@@ -1,6 +1,6 @@
 {
   "name": "thinkbar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Thinkbar: a purple progress bar above the prompt that shows how far Claude has come on each prompt.",
   "types": "./types/index.d.ts"
 }
