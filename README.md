@@ -2,20 +2,12 @@
 
 Mods for Claude Code.
 
-## Clean View
-
-Makes Claude Code calm and friendly for people who aren't technical. While Claude works, tool calls, file diffs and command output are hidden, and one simple checklist sits above the prompt: the plan, what's happening now and how far along it is.
-
-- Turn it on or off from the Tools box (or, without Tools, the **Clean View** button above the prompt), or type `/simple on`, `/simple off` or just `/simple`.
-- The choice is remembered on each computer.
-- Press ctrl+o to see every hidden row at any time.
-
 ## Tools (toolbox)
 
 One panel for everything: switch the model and effort with one click, turn each mod on or off, and run quick actions (`/compact`, `/clear`).
 
 - It opens as a framed box right above the prompt. Open or close it by clicking **◆ Tools ▲** at the right of the Infobar (in the desktop app **∧ Tools** at its left, pointing down while open), or type `/toolbox`; ✕ closes it too.
-- Clean View, Infobar, Prompt Upgrade and Clean Info Agents each get an on/off row under MODS once they are installed.
+- Infobar, Prompt Upgrade and Clean Info Agents each get an on/off row under MODS once they are installed.
 
 ## Infobar
 
@@ -58,7 +50,6 @@ Lets Claude plan a bigger task and hand the work to helper agents, while you wat
 At the prompt of a Claude Code terminal session, one line per mod:
 
 ```
-/plugin install clean-view --marketplace LeoNybom/claude-mods
 /plugin install toolbox --marketplace LeoNybom/claude-mods
 /plugin install infobar --marketplace LeoNybom/claude-mods
 /plugin install prompt-upgrade --marketplace LeoNybom/claude-mods
@@ -70,7 +61,6 @@ Answer `y` to add the marketplace the first time, then press Enter to choose the
 From a shell:
 
 ```
-claude plugin install clean-view --marketplace LeoNybom/claude-mods
 claude plugin install toolbox --marketplace LeoNybom/claude-mods
 claude plugin install infobar --marketplace LeoNybom/claude-mods
 claude plugin install prompt-upgrade --marketplace LeoNybom/claude-mods
@@ -83,7 +73,6 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 ```
 claude plugin marketplace update leonybom-mods
-claude plugin update clean-view@leonybom-mods
 claude plugin update toolbox@leonybom-mods
 claude plugin update infobar@leonybom-mods
 claude plugin update prompt-upgrade@leonybom-mods

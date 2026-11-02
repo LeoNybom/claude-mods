@@ -1,6 +1,6 @@
 # Rules for this repository
 
-This repository is a marketplace of Claude Code mods (`clean-view`, `toolbox`, `infobar`, `prompt-upgrade`). Other people install them with `claude plugin install <mod>@leonybom-mods` and update with `claude plugin update`.
+This repository is a marketplace of Claude Code mods (`toolbox`, `infobar`, `prompt-upgrade`, `clean-info-agents`). Other people install them with `claude plugin install <mod>@leonybom-mods` and update with `claude plugin update`.
 
 ## Every change to a mod gets a new version
 
