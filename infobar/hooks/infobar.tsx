@@ -472,7 +472,9 @@ async function drawDesktop($: Engine, e: Site, columns: number): Promise<RenderC
     row.push(
       // One Button holds the label and the chevron, so a click anywhere on the part opens Tools.
       // A Button may hold only text, so the chevron is a thin glyph here, not a picture.
-      <Box flexShrink={0} paddingX={1}>
+      // A quarter cell (2 px) at its left, with the button's own padding, centers the chevron on the
+      // M of the Tools box's MODS title, as Thinkbar's dot is.
+      <Box flexShrink={0} paddingLeft={0.25} paddingRight={1}>
         <Button key="open-tools" plain onPress={() => undefined}>
           <Text dimColor>{isToolsOpen ? DESKTOP_CHEVRON_OPEN : DESKTOP_CHEVRON} </Text>
           <Text>{DESKTOP_TOOLS}</Text>

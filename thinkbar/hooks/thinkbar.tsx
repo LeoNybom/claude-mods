@@ -8,6 +8,8 @@ import type { Phase, Run } from '../types'
 const enabledAtom = atom({ plugin: 'thinkbar', key: 'enabled' } as const, true)
 const runAtom = atom({ plugin: 'thinkbar', key: 'run' } as const, null)
 const STORE_KEY = 'enabled'
+/** The bar row's key: the Tools box lifts a band row keyed `top:…` above itself. */
+const TOP_ROW_KEY = 'top:thinkbar'
 
 const ACCENT = '#8f8cf4'
 const DONE = '#5fbf8f'
@@ -111,6 +113,13 @@ export function pillOf(r: Run): string {
 
 const H = 22
 const BAR_H = 16
+/** The room between the label and the bar, and between the bar and the percent. */
+const BAR_GAP = 18
+/** The thin line under the row: wider than any band, cut to its width, in the dividers' color. */
+const UNDERLINE_PX = 4000
+const UNDERLINE_SVG =
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${UNDERLINE_PX}" height="1" viewBox="0 0 ${UNDERLINE_PX} 1" preserveAspectRatio="none">` +
+  `<rect width="${UNDERLINE_PX}" height="1" fill="rgba(128,128,128,0.45)"/></svg>`
 const CELL = 3
 const FONT = "-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif"
 
@@ -123,9 +132,20 @@ const noise = (x: number, y: number): number => {
 const colorOf = (r: Run): string => (r.phase === 'stopped' ? STOPPED : r.isFinished ? DONE : ACCENT)
 
 export function rowSvg(r: Run, W: number): string {
-  const LABEL_W = 92
-  const BAR_X = 16 + LABEL_W
-  const BAR_W = Math.max(60, W - BAR_X - 64)
+  // The dot's center sits DOT_X in from the left edge, 4 px further in than the star's from the
+  // right, so with the row centered the dot lines up with the M of MODS and the star with the
+  // Infobar's last %.
+  const DOT_X = 9
+  const LABEL_X = DOT_X + 11
+  const PERCENT_END = W - 21
+  // The bar has the same room after the label as before the percent. Text cannot be measured
+  // here, so their widths come from their letters: about 7.3 px each for the label (13 px, 500)
+  // and 7 px for the percent (12.5 px, tabular digits).
+  const percentText = `${Math.round(r.ratio * 100)}%`
+  const labelEnd = LABEL_X + Math.round(PHASE_WORD[r.phase].length * 7.3)
+  const percentStart = PERCENT_END - Math.round(percentText.length * 7)
+  const BAR_X = labelEnd + BAR_GAP
+  const BAR_W = Math.max(60, percentStart - BAR_GAP - BAR_X)
   const color = colorOf(r)
   const y0 = (H - BAR_H) / 2
   const fillW = Math.round(BAR_W * r.ratio)
@@ -151,8 +171,9 @@ export function rowSvg(r: Run, W: number): string {
   const pill = pillOf(r)
   const pillW = Math.round(18 + pill.length * 6.6)
   const pillX = Math.max(0, Math.min(BAR_W - pillW, fillW - pillW))
-  const percent = `${Math.round(r.ratio * 100)}%`
-  const markX = W - 10
+  // The star's right tip sits 1 px from the right edge, as the dot's left edge does from the left,
+  // so the centered row has the same room on both sides.
+  const markX = W - 7
   // A four-point star that turns while Claude works; a check once it's done.
   const mark = r.isFinished
     ? `<path d="M${markX - 5} ${H / 2} l3.5 3.5 l6.5 -7" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
@@ -170,8 +191,8 @@ export function rowSvg(r: Run, W: number): string {
 @media (prefers-reduced-motion: reduce){.t0,.t1,.t2,.t3,.spin{animation:none}}
 </style>
 <defs><clipPath id="c"><rect x="0" y="0" width="${BAR_W}" height="${BAR_H}" rx="${BAR_H / 2}"/></clipPath></defs>
-<circle cx="5" cy="${H / 2}" r="4" fill="${color}"/>
-<text class="t" x="16" y="${H / 2 + 4.5}" font-family="${FONT}" font-size="13" font-weight="500">${PHASE_WORD[r.phase]}</text>
+<circle cx="${DOT_X}" cy="${H / 2}" r="4" fill="${color}"/>
+<text class="t" x="${LABEL_X}" y="${H / 2 + 4.5}" font-family="${FONT}" font-size="13" font-weight="500">${PHASE_WORD[r.phase]}</text>
 <g transform="translate(${BAR_X},${y0})">
 <rect class="k" width="${BAR_W}" height="${BAR_H}" rx="${BAR_H / 2}"/>
 <g clip-path="url(#c)">
@@ -181,7 +202,7 @@ export function rowSvg(r: Run, W: number): string {
 <rect x="${pillX}" width="${pillW}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${color}"/>
 <text x="${pillX + pillW / 2}" y="${BAR_H / 2 + 4}" text-anchor="middle" font-family="${FONT}" font-size="11" font-weight="600" fill="#ffffff">${pill}</text>
 </g>
-<text class="m" x="${W - 24}" y="${H / 2 + 4.5}" text-anchor="end" font-family="${FONT}" font-size="12.5" font-variant-numeric="tabular-nums">${percent}</text>
+<text class="m" x="${PERCENT_END}" y="${H / 2 + 4.5}" text-anchor="end" font-family="${FONT}" font-size="12.5" font-variant-numeric="tabular-nums">${percentText}</text>
 ${mark}
 </svg>`
 }
@@ -212,12 +233,21 @@ async function drawRow($: EngineInterface, e: RenderInput<'AbovePrompt'>, r: Run
   // The terminal's element table has an `Svg` that draws nothing: test the surface too.
   if (e.surface !== 'terminal' && 'Svg' in ui) {
     const { Svg } = ui
-    // Columns are about 7.8 CSS px in the app; a row wider than its slot wraps, so keep some slack.
-    const width = Math.max(200, Math.min(1600, Math.round(cols * 7.6) - 40))
+    // Columns are about 7.6 CSS px in the app; a row wider than its slot wraps, so keep some slack:
+    // 33 px, about 16 on each side, ends the row where the Tools box's lines do.
+    const width = Math.max(200, Math.min(1600, Math.round(cols * 7.6) - 33))
+    // The row is keyed `top:thinkbar`, so the Tools box opens under it, not above it. The picture is
+    // narrower than the band by the slack, so it sits centered. Under it runs the same thin line as
+    // under the Tools box, inset as that one is, with room above and below.
     return (
       <Box flexDirection="column" width="100%">
-        <Box flexDirection="row" alignItems="center" width="100%">
-          <Svg source={rowSvg(r, width)} alt={`${PHASE_WORD[r.phase]}: ${pillOf(r)}, ${percent}`} width={width} height={H} />
+        <Box key={TOP_ROW_KEY} flexDirection="column" width="100%">
+          <Box flexDirection="row" alignItems="center" justifyContent="center" width="100%">
+            <Svg source={rowSvg(r, width)} alt={`${PHASE_WORD[r.phase]}: ${pillOf(r)}, ${percent}`} width={width} height={H} />
+          </Box>
+          <Box marginTop={1} marginBottom={1} marginLeft={2.25} marginRight={2} overflow="hidden">
+            <Svg source={UNDERLINE_SVG} alt="underline" width={UNDERLINE_PX} height={1} />
+          </Box>
         </Box>
         {below}
       </Box>
@@ -231,7 +261,7 @@ async function drawRow($: EngineInterface, e: RenderInput<'AbovePrompt'>, r: Run
   const step = r.total > 0 && !r.isFinished ? `${Math.min(r.total, r.done + 1)}/${r.total}` : ''
   return (
     <Box flexDirection="column">
-      <Box flexDirection="row" gap={1}>
+      <Box key={TOP_ROW_KEY} flexDirection="row" gap={1}>
         <Box width={13} flexShrink={0}>
           <Text color={color} dimColor={color === undefined}>
             {icon} {PHASE_WORD[r.phase]}

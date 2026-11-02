@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { columnChoices, gridLayout, modelLabel, scrollWindow } from '../hooks/toolbox'
+import { columnChoices, gridLayout, modelLabel, scrollWindow, splitTop } from '../hooks/toolbox'
 
 const BAND = {
   plugin: 'toolbox',
@@ -18,7 +18,7 @@ const BAND = {
 
 const RUN = { origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } } as const
 
-function engine(on: On, log: { configSets: unknown[]; commands: string[] }) {
+function engine(on: On, log: { configSets: unknown[]; commands: string[] }, withThinkbar = false) {
   let model = 'claude-opus-5-5'
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -34,7 +34,18 @@ function engine(on: On, log: { configSets: unknown[]; commands: string[] }) {
   })
   on('ui.toast', () => ({ value: undefined }))
   on('ui.render', ($, e) => {
-    const { Text } = $.ui.resolve(e)
+    const { Box, Text } = $.ui.resolve(e)
+    // Beneath Tools: with Thinkbar, its keyed progress row, then the rest of the band.
+    if (withThinkbar) {
+      return (
+        <Box flexDirection="column">
+          <Box key="top:thinkbar">
+            <Text>thinking bar</Text>
+          </Box>
+          <Text>the rest of the band</Text>
+        </Box>
+      )
+    }
     return <Text>the rest of the band</Text>
   })
 }
@@ -260,4 +271,34 @@ test('Thinkbar gets a row once it has written its value, its name the switch', a
   expect((await ui.findAll({ type: 'Text' })).some(t => t.text === '○' && t.props.color === 'inactive')).toBe(true)
   expect(await ui.find({ type: 'Text', text: /No mods installed yet/ })).toBeUndefined()
   await ui.unmount()
+})
+
+test('a row keyed top: (Thinkbar) stays above the open box, the rest goes under it', async ($, on) => {
+  const bar = { type: 'Box', props: { key: 'top:thinkbar' }, children: [] }
+  const infobar = { type: 'Text', children: ['the infobar'] }
+  expect(splitTop({ type: 'Box', props: {}, children: [bar, infobar] })).toEqual({
+    top: bar,
+    below: { type: 'Box', props: {}, children: [infobar] },
+  })
+  expect(splitTop(infobar)).toEqual({ top: null, below: infobar })
+  // As in the app: the Infobar's column wraps Thinkbar's column, which holds the keyed row.
+  const thinkbar = { type: 'Box', props: { flexDirection: 'column' }, children: [bar] }
+  const wrapped = { type: 'Box', props: { flexDirection: 'column' }, children: [thinkbar, infobar] }
+  expect(splitTop(wrapped)).toEqual({
+    top: bar,
+    below: { type: 'Box', props: { flexDirection: 'column' }, children: [{ ...thinkbar, children: [] }, infobar] },
+  })
+
+  engine(on, { configSets: [], commands: [] }, true)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'toolbox', args: '', ...RUN })
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+  await ui.unmount()
+  const barAt = texts.findIndex(t => /thinking bar/.test(t))
+  const modsAt = texts.findIndex(t => /M O D S/.test(t))
+  const infobarAt = texts.findIndex(t => /the rest of the band/.test(t))
+  expect(barAt).toBeGreaterThanOrEqual(0)
+  expect(barAt).toBeLessThan(modsAt)
+  expect(modsAt).toBeLessThan(infobarAt)
 })

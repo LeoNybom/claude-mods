@@ -149,6 +149,27 @@ export function gridLayout(modWidths: readonly number[], quickWidths: readonly n
   }
 }
 
+type BandNode = { type?: unknown; props?: { key?: unknown }; children?: unknown[] }
+
+/**
+ * Splits off the top row of what the band draws beneath the box when another mod keys it `top:…`
+ * (Thinkbar's progress bar): that row stays on top, the rest goes under the box. Each mod beneath
+ * wraps what lies under it in its own column (the Infobar wraps Thinkbar's), so the row is looked
+ * for down the first child of each column.
+ */
+export function splitTop(rest: unknown): { top: RenderChildren; below: RenderChildren } {
+  const none = { top: null, below: (rest ?? null) as RenderChildren }
+  const node = rest as BandNode | null | undefined
+  const key = node?.props?.key
+  if (typeof key === 'string' && key.startsWith('top:')) return { top: rest as RenderChildren, below: null }
+  const children = node?.type === 'Box' && Array.isArray(node.children) ? node.children : []
+  if (children.length === 0) return none
+  const inner = splitTop(children[0])
+  if (inner.top === null) return none
+  const rows = inner.below === null ? children.slice(1) : [inner.below, ...children.slice(1)]
+  return { top: inner.top, below: { ...node, children: rows } as RenderChildren }
+}
+
 /** Moves the list by `by` rows, inside its ends. */
 async function scrollBy($: Engine, by: number): Promise<void> {
   const last = Math.max(0, shownListRows - shownWindowRows)
@@ -267,16 +288,22 @@ export function registerToolbox(on: On): void {
     const isOpen = await read($, openAtom)
     const ownButton =
       isTerminal || (await readFlag($, 'infobar')) === true ? null : (
-        <Box flexDirection="row" paddingX={2}>
+        // Less room at its left than the box: with the button's own padding, the chevron is centered
+        // on the M of MODS, as the Infobar's is.
+        <Box flexDirection="row" paddingLeft={1.25} paddingRight={2}>
           <Button key="open-tools" plain onPress={() => toggleOpen($)}>
             <Text dimColor>{isOpen ? '∨' : '∧'}</Text> Tools
           </Button>
         </Box>
       )
+    // A row another mod keys `top:…` (Thinkbar's progress bar) stays at the top of the band, so the
+    // box opens under it, between it and the Infobar.
+    const { top, below } = splitTop(rest)
     const withRest = (box: RenderChildren) => (
       <Box flexDirection="column">
+        {top}
         {box}
-        {rest ?? null}
+        {below}
         {ownButton}
       </Box>
     )
@@ -376,8 +403,9 @@ export function registerToolbox(on: On): void {
         )
       }
 
+      // paddingLeft 2.25 (18 px) puts MODS straight above the Infobar's ∨ Tools.
       return withRest(
-        <Box flexDirection="column" paddingX={2}>
+        <Box flexDirection="column" paddingLeft={2.25} paddingRight={2}>
           {/* paddingBottom puts the line as far under the menu's text as the Infobar's text is under it. */}
           <Box flexDirection="column" paddingBottom={1}>
             {layout.isStacked ? (

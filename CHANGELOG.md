@@ -14,6 +14,8 @@ claude plugin update <mod>@leonybom-mods
 - Desktop app: when a section no longer fits on one row it breaks into columns that fill every row (three columns of two rows for six mods, never two and one), else one column. The line between the sections grows with the rows.
 - Desktop app: a thin line under the open menu, inset with its content and in the dividers' color, set where the closed bar's top edge is.
 - Desktop app: a mod's description shows on hover; the empty ring is exactly as large as the green dot.
+- Desktop app: a band row another mod keys `top:…` (Thinkbar's bar) stays above the open menu, however deep the mods beneath wrap it.
+- Desktop app: MODS and its own ∨ Tools button line up with the Infobar's ∨ Tools and Thinkbar's dot.
 
 ### 0.5.0
 - The MODS row for Clean Info Agents is now a row for Thinkbar.
@@ -42,6 +44,9 @@ claude plugin update <mod>@leonybom-mods
 - First version: switch model and effort, turn mods on and off, quick actions.
 
 ## infobar
+
+### 0.5.1
+- Desktop app: the ∨ of ∨ Tools is centered on the M of the Tools box's MODS, and on Thinkbar's dot.
 
 ### 0.5.0
 - Desktop app: a new order. Tools sits at the left edge, right under the box it opens, with its chevron first (∧ Tools). The git branch comes next and takes the free room, then the agents, and the usage bars last at the right.
@@ -96,6 +101,11 @@ claude plugin update <mod>@leonybom-mods
 - First version: `/better` turns a rough prompt into a great one, with questions, a rewrite and a side-by-side review.
 
 ## thinkbar
+
+### 0.2.0
+- Desktop app: the bar stays above the Tools box when it is open (its row is keyed `top:thinkbar`), with a thin line under it like the one under the Tools box.
+- Desktop app: the row is centered; its dot sits centered on the M of MODS and its star over the Infobar's last %, where the lines end.
+- Desktop app: the progress bar has the same room after the label as before the percent.
 
 ### 0.1.0
 - First version: a purple progress bar above the prompt and the other mods, from the moment a prompt is sent until the answer. It shows what Claude is doing, follows Claude's task list when there is one, and turns green at the answer. Replaces the progress bar of Clean Info Agents, without the crabs.
