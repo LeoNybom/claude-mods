@@ -27,6 +27,7 @@ const PHASE_WORD: Record<Phase, string> = {
   editing: 'Editing',
   running: 'Running',
   delegating: 'Delegating',
+  writing: 'Writing',
   done: 'Done',
   stopped: 'Stopped',
 }
@@ -34,17 +35,19 @@ const PHASE_WORD: Record<Phase, string> = {
 // Where each phase puts the bar at the least, when Claude keeps no task list.
 const FLOOR: Record<Phase, number> = {
   thinking: 0.04,
-  reading: 0.2,
-  delegating: 0.3,
-  editing: 0.45,
-  running: 0.6,
+  reading: 0.1,
+  delegating: 0.15,
+  editing: 0.2,
+  running: 0.25,
+  writing: 0.04,
   done: 1,
   stopped: 0,
 }
 
 // Claude can't know how long it will take, so without a task list the bar is an
-// estimate: each step moves it on a little less, and it waits under 90% for the end.
-const CAP = 0.9
+// estimate: each step moves it on a little less, and it waits under a third for the
+// end. A task list that comes later then gets at least two thirds for its steps.
+const CAP = 1 / 3
 
 const READ_TOOLS = new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'LS', 'NotebookRead'])
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
@@ -85,19 +88,55 @@ export function listOf(tool: string, input: Record<string, unknown>, prev: { tot
   return undefined
 }
 
+/** Where task-list step `done` ends on the bar: the steps share, evenly, the room left when the list came. */
+export function listMark(r: Run, done: number): number {
+  const base = r.listBase ?? 0
+  return base + (Math.min(r.total, done) / r.total) * (0.95 - base)
+}
+
 /** Where the bar should be now: never back, and under the cap until the answer. */
 export function estimate(r: Run): number {
   if (r.isFinished) return 1
-  const byList = r.total > 0 ? (r.done / r.total) * 0.95 : 0
+  const byList = r.total > 0 ? listMark(r, r.done) : 0
   const bySteps = CAP * (1 - Math.pow(0.88, r.steps))
-  const guess = Math.max(FLOOR[r.phase], r.total > 0 ? byList : bySteps)
+  const guess = r.total > 0 ? byList : Math.max(FLOOR[r.phase], bySteps)
   return Math.max(r.ratio, Math.min(r.total > 0 ? 0.95 : CAP, guess))
 }
+
+// Between events the bar creeps on by itself: every second it covers a small share of
+// what is left to its ceiling, so it slows down as it gets closer and never gets there.
+// A task-list step is a short way, so the bar creeps faster inside one.
+const CREEP_EVERY_MS = 1000
+const CREEP_SHARE = 1 / 60
+const STEP_CREEP_SHARE = 1 / 30
+// Writing the answer is near the end: the text streamed moves the bar too, this many
+// characters taking it about two thirds of the way left, so a long answer fills it
+// and a short line before a tool call barely moves it.
+const WRITE_CHARS = 1500
+
+/**
+ * The bar one second later, with `written` characters of answer streamed in that second:
+ * closer to the ceiling (the next task-list step; else a third, or 95% while writing), never past it.
+ */
+export function creep(r: Run, written = 0): Run {
+  if (r.isFinished) return r
+  const isWriting = r.phase === 'writing'
+  const ceiling = r.total > 0 ? listMark(r, r.done + 1) : isWriting ? 0.95 : CAP
+  if (r.ratio >= ceiling) return r
+  const share = (r.total > 0 ? STEP_CREEP_SHARE : CREEP_SHARE) + (isWriting ? 1 - Math.exp(-written / WRITE_CHARS) : 0)
+  return { ...r, ratio: r.ratio + (ceiling - r.ratio) * Math.min(1, share) }
+}
+
+let creeper: { cancel(): void } | undefined
+// Characters of answer streamed since the last creep.
+let written = 0
 
 const fresh = (turnId: string): Run => ({ turnId, phase: 'thinking', steps: 0, total: 0, done: 0, ratio: FLOOR.thinking, isFinished: false })
 
 const advance = (r: Run, change: Partial<Run>): Run => {
   const next = { ...r, ...change }
+  // A task list that starts now gets the rest of the bar, from where it is.
+  if (r.total === 0 && next.total > 0) next.listBase = r.ratio
   return { ...next, ratio: estimate(next) }
 }
 
@@ -306,12 +345,32 @@ export function registerThinkbar(on: On): void {
     const result = await next(e)
     if (e.agentId !== undefined) return result
     await update($, runAtom, prev => (prev && !prev.isFinished ? prev : fresh(e.turnId)))
+    creeper?.cancel()
+    written = 0
+    creeper = $.clock.every(CREEP_EVERY_MS, () => {
+      const chars = written
+      written = 0
+      void update($, runAtom, r => (r ? creep(r, chars) : r))
+    })
     return result
   })
 
-  // Each model request of the main loop is a step.
+  // Each model request of the main loop is a step. As it streams, the bar says what
+  // Claude does: thinking, writing, or starting a tool call (named before it runs).
   on('turn.step', async function* ($, e, next) {
-    const result = yield* next(e)
+    const stream = next(e)
+    let shown: Phase | undefined
+    for await (const chunk of stream) {
+      const phase: Phase | undefined =
+        chunk.kind === 'text' ? 'writing' : chunk.kind === 'thinking' ? 'thinking' : chunk.kind === 'tool' ? (phaseOf(chunk.name) ?? 'thinking') : undefined
+      if (e.agentId === undefined && chunk.kind === 'text') written += chunk.text.length
+      if (e.agentId === undefined && phase && phase !== shown) {
+        shown = phase
+        await update($, runAtom, r => (r && !r.isFinished && r.phase !== phase ? { ...r, phase } : r))
+      }
+      yield chunk
+    }
+    const result = await stream.result
     if (e.agentId === undefined) await update($, runAtom, r => (r && !r.isFinished ? advance(r, { steps: r.steps + 1 }) : r))
     return result
   })
@@ -334,6 +393,8 @@ export function registerThinkbar(on: On): void {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId !== undefined) return result
+    creeper?.cancel()
+    creeper = undefined
     const stopped = e.reason !== 'answer'
     const finished = await update($, runAtom, r =>
       r ? { ...r, isFinished: true, phase: stopped ? 'stopped' : 'done', ratio: stopped ? r.ratio : 1 } : r,

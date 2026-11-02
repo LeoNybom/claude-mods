@@ -102,6 +102,12 @@ claude plugin update <mod>@leonybom-mods
 
 ## thinkbar
 
+### 0.3.0
+- Between events the bar creeps on by itself, slower the closer it gets, and never past the next task-list step.
+- Without a task list the bar stays under a third until the answer (it waited under 90%), and reading, editing or running no longer jumps it to 60%. A task list that comes later shares the rest of the bar evenly from where the bar is, with a jump at each step.
+- The bar says Writing while Claude writes its answer, and Thinking while it thinks.
+- While Claude writes, the text streamed moves the bar too, up to 95% on the last step or without a task list, so a long answer no longer sits near the start and then jumps to 100%.
+
 ### 0.2.0
 - Desktop app: the bar stays above the Tools box when it is open (its row is keyed `top:thinkbar`), with a thin line under it like the one under the Tools box.
 - Desktop app: the row is centered; its dot sits centered on the M of MODS and its star over the Infobar's last %, where the lines end.
