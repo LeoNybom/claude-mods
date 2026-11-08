@@ -1,6 +1,6 @@
 ---
 name: discord
-description: Writes a Swedish Discord announcement for a mod in this marketplace that has a new, not yet announced version on GitHub. Use when the user types /discord <mod> (toolbox, infobar, prompt-upgrade, thinkbar).
+description: Writes a Swedish Discord announcement for a mod in this marketplace that has a new, not yet announced version on GitHub. Use when the user types /discord <mod> (toolbox, infobar, prompt-upgrade, thinkbar, adhd).
 argument-hint: <mod>
 allowed-tools: Bash(node .claude/skills/discord/check.js:*), Read
 ---
@@ -8,6 +8,8 @@ allowed-tools: Bash(node .claude/skills/discord/check.js:*), Read
 # /discord <mod>
 
 Mod: `$ARGUMENTS`
+
+The message goes in the chat only. Never write it, or anything else, to a file in the project.
 
 ## 1. Check for an update
 
@@ -20,7 +22,7 @@ node .claude/skills/discord/check.js $ARGUMENTS
 It fetches `origin/main` from GitHub and prints JSON:
 
 - `published`: the version on GitHub (what `claude plugin update` installs)
-- `announced`: the last version already announced on Discord (from `announced.json`), or null
+- `announced`: the last version already announced on Discord (from `~/.claude/discord-announced.json`), or null
 - `hasUpdate`: true when `published` is newer than `announced` (or nothing was announced yet)
 - `newVersions`: each version to cover, newest first, with its `CHANGELOG.md` lines (`changelog` is null when the changelog has no entry for it)
 - `commits`: commit messages for the mod since the announced version
@@ -66,7 +68,7 @@ Frågor eller något som ser konstigt ut? Skriv här i kanalen! 🙌
 
 Rules:
 
-- Heading emoji per mod: Tools 🧰, Infobar 📊, Prompt Upgrade ✍️, Thinkbar 💜.
+- Heading emoji per mod: Tools 🧰, Infobar 📊, Prompt Upgrade ✍️, Thinkbar 💜, ADHD 🧠.
 - One fitting emoji in front of each bullet, different ones per bullet.
 - Group by feature, not by version. Say "Terminalen" and "Desktop-appen" when a change only affects one of them.
 - Write for users, not developers: what they see and can do, not how it is built. No pixel values or internal names unless they show on screen.
@@ -84,4 +86,4 @@ After showing the message, record the version so the next run does not announce 
 node .claude/skills/discord/check.js $ARGUMENTS --mark <published>
 ```
 
-Tell the user in one line that <name> <published> is now marked as sent, and that they can commit `announced.json` so the mark is shared.
+The mark is kept in `~/.claude/discord-announced.json`, outside the project. Tell the user in one line that <name> <published> is now marked as sent.

@@ -11,12 +11,14 @@ const { execFileSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const STATE = path.join(__dirname, "announced.json");
+// Kept outside the project, so the skill never writes to the repository.
+const STATE = path.join(require("os").homedir(), ".claude", "discord-announced.json");
 const NAMES = {
   toolbox: "Tools",
   infobar: "Infobar",
   "prompt-upgrade": "Prompt Upgrade",
   thinkbar: "Thinkbar",
+  adhd: "ADHD",
 };
 
 const git = (...args) =>
