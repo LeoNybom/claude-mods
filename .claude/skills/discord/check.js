@@ -1,18 +1,14 @@
 #!/usr/bin/env node
-// Checks whether a mod has a published update that has not been announced on Discord yet.
+// Reports a mod's newest version on GitHub with its changelog lines, for a Discord announcement.
+// It only reads; it writes no file.
 //
-//   node check.js <mod>                 -> JSON report (reads origin/main on GitHub)
-//   node check.js <mod> --mark <ver>    -> records <ver> as announced
+//   node check.js <mod>    -> JSON report (reads origin/main on GitHub)
 //
 // "Published" means the version in <mod>/.claude-plugin/plugin.json on origin/main,
 // since that is what `claude plugin update` installs.
 
 const { execFileSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
 
-// Kept outside the project, so the skill never writes to the repository.
-const STATE = path.join(require("os").homedir(), ".claude", "discord-announced.json");
 const NAMES = {
   toolbox: "Tools",
   infobar: "Infobar",
@@ -30,22 +26,11 @@ const cmp = (a, b) => {
   return 0;
 };
 
-const readState = () => {
-  try { return JSON.parse(fs.readFileSync(STATE, "utf8")); } catch { return {}; }
-};
 
 const out = (obj) => { process.stdout.write(JSON.stringify(obj, null, 2) + "\n"); };
 
-const [mod, flag, markVer] = process.argv.slice(2);
-if (!mod) { out({ error: "Usage: node check.js <mod> [--mark <version>]", mods: Object.keys(NAMES) }); process.exit(1); }
-
-if (flag === "--mark") {
-  const state = readState();
-  state[mod] = markVer;
-  fs.writeFileSync(STATE, JSON.stringify(state, null, 2) + "\n");
-  out({ marked: mod, version: markVer });
-  process.exit(0);
-}
+const [mod] = process.argv.slice(2);
+if (!mod) { out({ error: "Usage: node check.js <mod>", mods: Object.keys(NAMES) }); process.exit(1); }
 
 try { git("fetch", "--quiet", "origin", "main"); }
 catch (e) { out({ error: "Could not fetch from GitHub: " + String(e.stderr || e.message).trim() }); process.exit(1); }
@@ -60,8 +45,9 @@ try {
   process.exit(1);
 }
 
-const announced = readState()[mod] || null;
-const hasUpdate = !announced || cmp(published, announced) > 0;
+// Nothing is stored: the newest version on GitHub is always the one to announce.
+const announced = null;
+const hasUpdate = true;
 
 // Changelog sections for this mod, newest first.
 const changelog = git("show", "origin/main:CHANGELOG.md");
