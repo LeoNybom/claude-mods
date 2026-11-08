@@ -1,7 +1,7 @@
 {
   "name": "leonybom-mods",
   "owner": { "name": "LeoNybom" },
-  "description": "Leo's mods for Claude Code: Tools, Infobar, Prompt Upgrade and Thinkbar.",
+  "description": "Leo's mods for Claude Code: Tools, Infobar, Prompt Upgrade, Thinkbar and ADHD.",
   "plugins": [
     {
       "name": "toolbox",
@@ -22,6 +22,11 @@
       "name": "thinkbar",
       "source": "./thinkbar",
       "description": "Thinkbar: a purple progress bar above the prompt that shows how far Claude has come on each prompt."
+    },
+    {
+      "name": "adhd",
+      "source": "./adhd",
+      "description": "ADHD: shapes Claude's answers for an ADHD reader (next action first, numbered steps, no tangents), on or off from the Tools box. Rules from ayghri/i-have-adhd (MIT)."
     }
   ]
 }

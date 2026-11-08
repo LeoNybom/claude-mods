@@ -97,14 +97,16 @@ const DOT_OFF_SVG =
 const infobarRef = { plugin: 'infobar', key: 'enabled' } as const
 const promptUpgradeRef = { plugin: 'prompt-upgrade', key: 'auto' } as const
 const thinkbarRef = { plugin: 'thinkbar', key: 'enabled' } as const
+const adhdRef = { plugin: 'adhd', key: 'enabled' } as const
 
-type ModName = 'infobar' | 'prompt-upgrade' | 'thinkbar'
+type ModName = 'infobar' | 'prompt-upgrade' | 'thinkbar' | 'adhd'
 
 /** Each mod with what it does, shown while the pointer rests on it. */
 const MODS: readonly { plugin: ModName; name: string; about: string }[] = [
   { plugin: 'infobar', name: 'Infobar', about: 'Context, usage limits, agents and git branch at a glance' },
   { plugin: 'prompt-upgrade', name: 'Prompt Upgrade', about: "Turns a rough prompt into a clear one before it's sent" },
   { plugin: 'thinkbar', name: 'Thinkbar', about: 'A progress bar above the prompt while Claude works' },
+  { plugin: 'adhd', name: 'ADHD', about: 'Answers shaped for ADHD: next action first, numbered steps, no tangents' },
 ]
 
 // What the terminal's last drawing showed, so a scroll knows how far the list may move.
@@ -242,7 +244,9 @@ async function readFlag($: Engine, which: ModName): Promise<boolean | undefined>
       ? await $.state.get(infobarRef)
       : which === 'prompt-upgrade'
         ? await $.state.get(promptUpgradeRef)
-        : await $.state.get(thinkbarRef)
+        : which === 'thinkbar'
+          ? await $.state.get(thinkbarRef)
+          : await $.state.get(adhdRef)
   return typeof held.value === 'boolean' ? held.value : undefined
 }
 

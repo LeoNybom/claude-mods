@@ -7,7 +7,7 @@ Mods for Claude Code.
 One panel for everything: turn each mod on or off, run quick actions (`/compact`, `/clear`), and in the terminal switch the model and effort with one click.
 
 - It opens right above the prompt. Open or close it by clicking **◆ Tools ▲** at the right of the Infobar (in the desktop app **∧ Tools** at its left, pointing down while open), or type `/toolbox`; in the terminal it is a framed box at the right, half the prompt's width, and **✕ Close** closes it too.
-- Infobar, Prompt Upgrade and Thinkbar each get a row under MODS once they are installed: a green dot while on, an empty ring while off. Click the name to turn it on or off; rest the pointer on it to see what it does.
+- Infobar, Prompt Upgrade, Thinkbar and ADHD each get a row under MODS once they are installed: a green dot while on, an empty ring while off. Click the name to turn it on or off; rest the pointer on it to see what it does.
 - Desktop app: MODS and QUICK each take half the menu, the line between them in the middle. Each sits on one row while it fits, then in columns that fill every row, then in one column; a thin line runs under the open menu. The app shows the model and effort itself, so they are left out. With the Infobar off, Tools draws its own **∧ Tools** button, so it is never out of reach.
 - Terminal: a list with the model and effort at the top; when it is taller than the room above the prompt it scrolls under its header, with ▲ and ▼.
 
@@ -36,6 +36,13 @@ A purple progress bar right above the prompt, above the Infobar and the other mo
 - Desktop app: a dotted pixel fill, a small turning star while Claude works and a check when it's done. Terminal: block characters in your terminal theme's colors.
 - Turn it on or off from its row in the Tools box.
 
+## ADHD
+
+Shapes Claude's answers for a reader with ADHD: the next action first, numbered steps, no tangents, where you are restated each turn, concrete time estimates, and no filler. The rules are [i-have-adhd](https://github.com/ayghri/i-have-adhd) by Ayoub Ghriss (MIT, see [adhd/LICENSE](adhd/LICENSE)).
+
+- Off by default. Turn it on or off from its **ADHD** row in the Tools box; it applies from your next prompt and is remembered across sessions.
+- The rules are sent once with your first prompt (and again after the chat is compacted), then a one-line reminder with each prompt.
+
 ## Install
 
 At the prompt of a Claude Code terminal session, one line per mod:
@@ -45,6 +52,7 @@ At the prompt of a Claude Code terminal session, one line per mod:
 /plugin install infobar --marketplace LeoNybom/claude-mods
 /plugin install prompt-upgrade --marketplace LeoNybom/claude-mods
 /plugin install thinkbar --marketplace LeoNybom/claude-mods
+/plugin install adhd --marketplace LeoNybom/claude-mods
 ```
 
 Answer `y` to add the marketplace the first time, then press Enter to choose the user scope (all projects).
@@ -56,6 +64,7 @@ claude plugin install toolbox --marketplace LeoNybom/claude-mods
 claude plugin install infobar --marketplace LeoNybom/claude-mods
 claude plugin install prompt-upgrade --marketplace LeoNybom/claude-mods
 claude plugin install thinkbar --marketplace LeoNybom/claude-mods
+claude plugin install adhd --marketplace LeoNybom/claude-mods
 ```
 
 In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `LeoNybom/claude-mods`, then Add plugin.
@@ -68,6 +77,7 @@ claude plugin update toolbox@leonybom-mods
 claude plugin update infobar@leonybom-mods
 claude plugin update prompt-upgrade@leonybom-mods
 claude plugin update thinkbar@leonybom-mods
+claude plugin update adhd@leonybom-mods
 ```
 
 Then type `/reload-plugins` in a running session, or start a new one.

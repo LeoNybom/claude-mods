@@ -9,6 +9,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## toolbox
 
+### 0.8.0
+- Adds a row for ADHD under MODS.
+
 ### 0.6.0
 - Desktop app: MODS and QUICK each get an equal half, with the line between them always in the middle.
 - Desktop app: when a section no longer fits on one row it breaks into columns that fill every row (three columns of two rows for six mods, never two and one), else one column. The line between the sections grows with the rows.
@@ -116,6 +119,11 @@ claude plugin update <mod>@leonybom-mods
 ### 0.1.0
 - First version: a purple progress bar above the prompt and the other mods, from the moment a prompt is sent until the answer. It shows what Claude is doing, follows Claude's task list when there is one, and turns green at the answer. Replaces the progress bar of Clean Info Agents, without the crabs.
 - An on/off row in the Tools box.
+
+## adhd
+
+### 0.1.0
+- First version: the i-have-adhd rules by Ayoub Ghriss (ayghri/i-have-adhd, MIT), turned on and off from its row in the Tools box. Off by default.
 
 ## clean-info-agents (removed)
 

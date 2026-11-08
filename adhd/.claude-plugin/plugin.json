@@ -1,0 +1,7 @@
+{
+  "name": "adhd",
+  "version": "0.1.0",
+  "description": "ADHD: shapes Claude's answers for an ADHD reader (next action first, numbered steps, no tangents), on or off from the Tools box. Rules from ayghri/i-have-adhd (MIT).",
+  "author": { "name": "LeoNybom, rules by Ayoub Ghriss (ayghri/i-have-adhd)" },
+  "types": "./types/index.d.ts"
+}
