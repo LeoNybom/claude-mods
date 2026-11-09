@@ -22,10 +22,18 @@ export const EFFORTS: readonly { level: ToolboxEffort; label: string }[] = [
   { level: 'max', label: 'Max' },
 ]
 
-const QUICK = [
-  { command: 'compact', icon: '✦', label: 'Shrink this chat' },
-  { command: 'clear', icon: '◇', label: 'Start a new chat' },
-] as const
+/** A quick action runs a slash command, or sends Claude a prompt in the Tools mod's name. */
+type Quick = { key: string; icon: string; label: string } & ({ command: string } | { prompt: string })
+
+const SUMMARY_PROMPT =
+  'Summarize briefly what this chat is about: its topic, what has been done and where it stands now. ' +
+  'Two to four sentences, in the language the person writes in. Run no tools and change nothing.'
+
+const QUICK: readonly Quick[] = [
+  { key: 'compact', command: 'compact', icon: '✦', label: 'Shrink this chat' },
+  { key: 'clear', command: 'clear', icon: '◇', label: 'Start a new chat' },
+  { key: 'summary', prompt: SUMMARY_PROMPT, icon: '≡', label: 'Summary' },
+]
 
 const effortAtom = atom({ plugin: 'toolbox', key: 'effort' } as const, null)
 const revisionAtom = atom({ plugin: 'toolbox', key: 'revision' } as const, 0)
@@ -233,9 +241,10 @@ async function setEffort($: Engine, level: ToolboxEffort, label: string): Promis
   $.ui.toast(`Effort: ${label}`)
 }
 
-async function runQuick($: Engine, command: string): Promise<void> {
+async function runQuick($: Engine, q: Quick): Promise<void> {
   await close($)
-  await $.command.run({ command })
+  if ('command' in q) await $.command.run({ command: q.command })
+  else await $.prompt.submit({ text: q.prompt })
 }
 
 async function readFlag($: Engine, which: ModName): Promise<boolean | undefined> {
@@ -353,8 +362,8 @@ export function registerToolbox(on: On): void {
         <Text bold>{mod.name}</Text>
       </Button>
     )
-    const quickButton = (q: (typeof QUICK)[number]) => (
-      <Button key={`quick:${q.command}`} plain onPress={() => runQuick($, q.command)}>
+    const quickButton = (q: Quick) => (
+      <Button key={`quick:${q.key}`} plain onPress={() => runQuick($, q)}>
         <Text color="claude">{q.icon}</Text> {q.label}
       </Button>
     )

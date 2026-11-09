@@ -268,6 +268,27 @@ test('the box shows mods and quick actions, model and effort in the terminal onl
   await ui.unmount()
 })
 
+test('Summary asks Claude to sum up the chat, in the mod’s name, and closes the box', async ($, on) => {
+  const log = { configSets: [] as unknown[], commands: [] as string[] }
+  engine(on, log)
+  const submitted: { text: string; asUser?: boolean }[] = []
+  on('prompt.submit', (_, e) => {
+    submitted.push({ text: e.text, asUser: (e as { asUser?: boolean }).asUser })
+    return { text: e.text }
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'toolbox', args: '', ...RUN })
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  await ui.press({ key: 'quick:summary' })
+  expect(submitted).toHaveLength(1)
+  expect(submitted[0]?.text).toMatch(/^Summarize briefly what this chat is about/)
+  expect(submitted[0]?.asUser).toBeUndefined()
+  expect(log.commands).toEqual([])
+  expect(await ui.find({ type: 'Text', text: /T O O L S/ })).toBeUndefined()
+  await ui.unmount()
+})
+
 test('Thinkbar gets a row once it has written its value, its name the switch', async ($, on) => {
   engine(on, { configSets: [], commands: [] })
   // Thinkbar is installed and off; the other mods are not installed.

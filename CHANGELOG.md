@@ -9,6 +9,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## toolbox
 
+### 0.9.0
+- Adds a Summary button under QUICK: Claude sums up in a few sentences what the chat is about.
+
 ### 0.8.0
 - Adds a row for ADHD under MODS.
 
