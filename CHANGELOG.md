@@ -9,6 +9,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## toolbox
 
+### 0.9.2
+- Shorter quick action names: "Shrink chat", "Clear chat" and "Summarize chat".
+
 ### 0.9.1
 - Desktop app: at most three mods and two quick actions a row, so a mod's name is never cut off. The first ones stay on the bottom row, next to MODS and QUICK; more go on rows above.
 

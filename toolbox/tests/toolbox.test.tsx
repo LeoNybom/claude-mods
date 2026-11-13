@@ -177,7 +177,7 @@ test('in the app the line between the sections grows with the rows, and a line r
     return { height: divider?.props.height, underLine }
   }
   expect(await height(120)).toEqual({ height: 40, underLine: true })
-  expect(await height(95)).toEqual({ height: 60, underLine: true })
+  expect(await height(95)).toEqual({ height: 40, underLine: true })
   expect(await height(70)).toEqual({ height: 60, underLine: true })
 })
 

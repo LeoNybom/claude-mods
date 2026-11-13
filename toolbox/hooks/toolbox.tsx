@@ -30,9 +30,9 @@ const SUMMARY_PROMPT =
   'Two to four sentences, in the language the person writes in. Run no tools and change nothing.'
 
 const QUICK: readonly Quick[] = [
-  { key: 'compact', command: 'compact', icon: '✦', label: 'Shrink this chat' },
-  { key: 'clear', command: 'clear', icon: '◇', label: 'Start a new chat' },
-  { key: 'summary', prompt: SUMMARY_PROMPT, icon: '≡', label: 'Summary' },
+  { key: 'compact', command: 'compact', icon: '✦', label: 'Shrink chat' },
+  { key: 'clear', command: 'clear', icon: '◇', label: 'Clear chat' },
+  { key: 'summary', prompt: SUMMARY_PROMPT, icon: '≡', label: 'Summarize chat' },
 ]
 
 const effortAtom = atom({ plugin: 'toolbox', key: 'effort' } as const, null)
