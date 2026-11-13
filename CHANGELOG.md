@@ -9,6 +9,9 @@ claude plugin update <mod>@leonybom-mods
 
 ## toolbox
 
+### 0.9.1
+- Desktop app: at most three mods and two quick actions a row, so a mod's name is never cut off. The first ones stay on the bottom row, next to MODS and QUICK; more go on rows above.
+
 ### 0.9.0
 - Adds a Summary button under QUICK: Claude sums up in a few sentences what the chat is about.
 

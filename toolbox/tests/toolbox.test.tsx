@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { columnChoices, gridLayout, modelLabel, scrollWindow, splitTop, terminalBoxWidth } from '../hooks/toolbox'
+import { columnChoices, gridLayout, modelLabel, rowsBottomUp, scrollWindow, splitTop, terminalBoxWidth } from '../hooks/toolbox'
 
 const BAND = {
   plugin: 'toolbox',
@@ -127,23 +127,35 @@ test('in the app everything sits on one row, and a mod shows what it does under 
   await ui.unmount()
 })
 
-test('each section takes the most columns that fit its half and fill every row, then they stack', () => {
-  // One row, then up to three columns where the rows come out full, then one column.
-  expect(columnChoices(3)).toEqual([3, 1])
-  expect(columnChoices(4)).toEqual([4, 2, 1])
-  expect(columnChoices(6)).toEqual([6, 3, 2, 1])
-  expect(columnChoices(2)).toEqual([2, 1])
-  expect(columnChoices(1)).toEqual([1])
+test('each section takes at most three mods or two quick actions a row, fewer when its half is narrow', () => {
+  // At most `most` columns, down to one; the last row may be short.
+  expect(columnChoices(3, 3)).toEqual([3, 2, 1])
+  expect(columnChoices(4, 3)).toEqual([3, 2, 1])
+  expect(columnChoices(3, 2)).toEqual([2, 1])
+  expect(columnChoices(2, 3)).toEqual([2, 1])
+  expect(columnChoices(1, 3)).toEqual([1])
 
   const mods = [11, 18, 21] // three mods of these widths
-  const quick = [20, 20]
-  expect(gridLayout(mods, quick, 140)).toEqual({ isStacked: false, modColumns: 3, quickColumns: 2 })
-  // Three mods never split two and one: a column of three instead.
-  expect(gridLayout(mods, quick, 120)).toEqual({ isStacked: false, modColumns: 1, quickColumns: 2 })
+  const quick = [20, 20, 11]
+  // Four mods and three quick actions, wide: three and one, two and one.
+  expect(gridLayout([...mods, 8], quick, 160)).toEqual({ isStacked: false, modColumns: 3, quickColumns: 2 })
+  expect(gridLayout(mods, quick, 160)).toEqual({ isStacked: false, modColumns: 3, quickColumns: 2 })
   expect(gridLayout(mods, quick, 80)).toEqual({ isStacked: false, modColumns: 1, quickColumns: 1 })
   expect(gridLayout(mods, quick, 40).isStacked).toBe(true)
-  // Six mods, as more get added: three columns of two rows, beside QUICK on one row.
-  expect(gridLayout([...mods, 14, 16, 12], quick, 140)).toEqual({ isStacked: false, modColumns: 3, quickColumns: 2 })
+  // Six mods, as more get added: three columns of two rows, beside QUICK.
+  expect(gridLayout([...mods, 14, 16, 12], quick, 160)).toEqual({ isStacked: false, modColumns: 3, quickColumns: 2 })
+})
+
+test('the first items stand on the bottom row and later ones on rows above, in the same columns', () => {
+  expect(rowsBottomUp(['a', 'b', 'c', 'd'], 3)).toEqual([
+    ['d', null, null],
+    ['a', 'b', 'c'],
+  ])
+  expect(rowsBottomUp(['x', 'y', 'z'], 2)).toEqual([
+    ['z', null],
+    ['x', 'y'],
+  ])
+  expect(rowsBottomUp(['a', 'b'], 3)).toEqual([['a', 'b', null]])
 })
 
 test('in the app the line between the sections grows with the rows, and a line runs under the menu', async ($, on) => {
@@ -164,7 +176,7 @@ test('in the app the line between the sections grows with the rows, and a line r
     await ui.unmount()
     return { height: divider?.props.height, underLine }
   }
-  expect(await height(120)).toEqual({ height: 20, underLine: true })
+  expect(await height(120)).toEqual({ height: 40, underLine: true })
   expect(await height(95)).toEqual({ height: 60, underLine: true })
   expect(await height(70)).toEqual({ height: 60, underLine: true })
 })

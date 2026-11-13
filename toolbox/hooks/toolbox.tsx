@@ -73,8 +73,9 @@ const SECTION_GAP = 3
 const TITLE_COLUMNS = 10
 /** How many of the app's average characters fit in one cell of `bodyColumns`, as the Infobar counts. */
 const DESKTOP_CELL_RATIO = 1.2
-/** In the app, the most columns a section breaks into once its items no longer fit on one row. */
-const MAX_COLUMNS = 3
+/** In the app, the most items on one row: three mods, two quick actions. More go on rows above. */
+const MOD_COLUMNS = 3
+const QUICK_COLUMNS = 2
 /** In the app, cells between two columns of items. */
 const COLUMN_GAP = 2
 /** In the app, one row's height, which the line between the sections grows by. */
@@ -142,15 +143,26 @@ export function scrollWindow(listRows: number, room: number, offset: number, tra
 }
 
 /**
- * The column counts a section of `count` items may take, widest first: all on one row, then
- * MAX_COLUMNS or fewer where every row comes out full (six mods: three columns of two rows;
- * three mods: never two and one), and one column last.
+ * The column counts a section of `count` items may take, widest first: `most` or fewer, down to
+ * one. The last row may be short (four mods in three columns: three and one).
  */
-export function columnChoices(count: number): number[] {
-  const choices = [Math.max(1, count)]
-  for (let c = Math.min(MAX_COLUMNS, count - 1); c > 1; c -= 1) if (count % c === 0) choices.push(c)
-  if (count > 1) choices.push(1)
+export function columnChoices(count: number, most: number): number[] {
+  const choices: number[] = []
+  for (let c = Math.max(1, Math.min(most, count)); c >= 1; c -= 1) choices.push(c)
   return choices
+}
+
+/**
+ * The rows a section shows, top first: the first `columns` items on the bottom row, the next ones
+ * on the row above, and so on. Each row lists its items by column, null where a short row has none.
+ */
+export function rowsBottomUp<T>(items: readonly T[], columns: number): (T | null)[][] {
+  const height = Math.ceil(items.length / columns)
+  const rows: (T | null)[][] = []
+  for (let r = height - 1; r >= 0; r -= 1) {
+    rows.push(Array.from({ length: columns }, (_, c) => items[r * columns + c] ?? null))
+  }
+  return rows
 }
 
 /**
@@ -167,15 +179,15 @@ export function gridLayout(modWidths: readonly number[], quickWidths: readonly n
     }
     return sum
   }
-  const most = (title: string, widths: readonly number[], space: number) =>
-    columnChoices(widths.length).find(columns => sectionWidth(title, widths, columns) <= space)
-  const modColumns = most('MODS', modWidths, half)
-  const quickColumns = most('QUICK', quickWidths, half)
+  const most = (title: string, widths: readonly number[], max: number, space: number) =>
+    columnChoices(widths.length, max).find(columns => sectionWidth(title, widths, columns) <= space)
+  const modColumns = most('MODS', modWidths, MOD_COLUMNS, half)
+  const quickColumns = most('QUICK', quickWidths, QUICK_COLUMNS, half)
   if (modColumns !== undefined && quickColumns !== undefined) return { isStacked: false, modColumns, quickColumns }
   return {
     isStacked: true,
-    modColumns: most('MODS', modWidths, room) ?? 1,
-    quickColumns: most('QUICK', quickWidths, room) ?? 1,
+    modColumns: most('MODS', modWidths, MOD_COLUMNS, room) ?? 1,
+    quickColumns: most('QUICK', quickWidths, QUICK_COLUMNS, room) ?? 1,
   }
 }
 
@@ -380,11 +392,12 @@ export function registerToolbox(on: On): void {
       const quickHeight = Math.ceil(quickWidths.length / layout.quickColumns)
       const tallest = Math.max(modHeight, quickHeight)
 
-      // Rows under a mod before the line under the menu: the rest of its section's rows, and the
-      // rows the taller QUICK has beyond them, or all of QUICK's when stacked under the mods.
+      // Rows under a mod before the line under the menu. The first mods sit on the bottom row and
+      // later ones on rows above, so a mod has as many rows under it as rows come before its own;
+      // the sections stand on one bottom line, and when stacked QUICK's rows are under the mods.
       const rowsBelow = (i: number) => {
         const row = Math.floor(i / layout.modColumns)
-        return (layout.isStacked ? modHeight + quickHeight : tallest) - 1 - row
+        return row + (layout.isStacked ? quickHeight : 0)
       }
 
       // Each mod is a hover scope holding its description, hidden until the pointer rests on the
@@ -410,14 +423,16 @@ export function registerToolbox(on: On): void {
             ))
           : [<Text dimColor>No mods installed yet</Text>]
 
-      // Items fill full rows, left to right, then the next row, in aligned columns. Side by side
-      // each section takes an equal half (width 0, grown), so the line between them stays in the
-      // middle: the mods fill the left half, QUICK the right.
+      // The first items fill the bottom row, left to right; later ones go on rows above it, in
+      // aligned columns, with an empty row's height where a short row has no item. The title
+      // stands on the bottom row. Side by side each section takes an equal half (width 0, grown),
+      // so the line between them stays in the middle: the mods fill the left half, QUICK the right.
       const section = (title: string, items: RenderChildren[], columns: number) => {
+        const rows = rowsBottomUp(items, columns)
         return (
           <Box
             flexDirection="row"
-            alignItems="flex-start"
+            alignItems="flex-end"
             gap={2}
             flexGrow={layout.isStacked ? 0 : 1}
             flexShrink={1}
@@ -427,9 +442,11 @@ export function registerToolbox(on: On): void {
             <Box flexShrink={0} width={layout.isStacked ? TITLE_COLUMNS : undefined}>
               <Text dimColor>{spaced(title)}</Text>
             </Box>
-            <Box flexDirection="row" alignItems="flex-start" columnGap={COLUMN_GAP}>
+            <Box flexDirection="row" alignItems="flex-end" columnGap={COLUMN_GAP}>
               {Array.from({ length: columns }, (_, c) => (
-                <Box flexDirection="column">{items.filter((_, i) => i % columns === c)}</Box>
+                <Box flexDirection="column">
+                  {rows.map((row, r) => row[c] ?? <Box key={`empty:${title}:${r}:${c}`} height={1} />)}
+                </Box>
               ))}
             </Box>
           </Box>
@@ -447,7 +464,7 @@ export function registerToolbox(on: On): void {
                 {section('QUICK', QUICK.map(quickButton), layout.quickColumns)}
               </Box>
             ) : (
-              <Box flexDirection="row" alignItems="flex-start" columnGap={SECTION_GAP}>
+              <Box flexDirection="row" alignItems="flex-end" columnGap={SECTION_GAP}>
                 {section('MODS', modItems, layout.modColumns)}
                 {/* A thin line between the mods and QUICK, as tall as the rows beside it. */}
                 <Svg source={dividerSvg(tallest)} alt="divider" width={1} height={tallest * ROW_PX} />
